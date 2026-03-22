@@ -3,7 +3,6 @@
 #include "rlights.h"
 #include "math.h"
 
-
 Color wallcolor = {73, 73, 81, 255 };
 Color wallcolor2 = {78, 78, 86, 255};
 Color metalBase = { 74, 74, 79, 255 };
@@ -12,11 +11,15 @@ Color rustDark = { 107, 58, 30, 255 };
 Color metalDirty = { 58, 58, 63, 255 };
 Color fogColor = { 180, 180, 200, 80 };   // pale dusty fog
 // Global textures (initialized in main)
+Texture2D texWall;
 Texture2D texRust;
 Texture2D texMetal;
 Texture2D texFabric;
 
 float fogRadius = 20.0f;                  // how far the fog extends
+Model wall;
+
+
 
 
 
@@ -251,15 +254,57 @@ void DrawCentralBlock(Color outerColor, Color innerColor, Color frontColor)
 // ------------------------------------------------------------
 void DrawRoom()
 {
-    DrawCube((Vector3){0, -0.01f, 0}, 4.0f, 0.02f, 4.0f, DARKGRAY);
+    static Model wallCubeModel;
+{
+    Mesh cubeMesh = GenMeshCube(1.0f, 1.0f, 1.0f);   // unit cube
+    wallCubeModel = LoadModelFromMesh(cubeMesh);
+    wallCubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
+}
 
-    DrawCube((Vector3){0,    1.25f, -2.0f}, 4.0f, 2.5f, 0.1f, wallcolor);
-    DrawCube((Vector3){-2.0f, 1.25f,  0   }, 0.1f, 2.5f, 4.0f, wallcolor);
-    DrawCube((Vector3){ 2.0f, 1.25f,  0   }, 0.1f, 2.5f, 4.0f, wallcolor);
-    // Back wall behind the camera
-    DrawCube((Vector3){0, 1.25f, 2.00f}, 4.0f, 2.5f, 0.1f, wallcolor);
-    // Roof (sideways wall)
-    DrawCube((Vector3){0, 2.5f, 0}, 4.0f, 0.1f, 4.0f, DARKGRAY);
+
+    rlDisableBackfaceCulling();
+    DrawModel(wall, (Vector3){0, -0.01f, 0}, 1.0f, WHITE);
+    rlEnableBackfaceCulling();
+;
+
+
+    //DrawCube((Vector3){0,    1.25f, -2.0f}, 4.0f, 2.5f, 0.1f, wallcolor);
+    //DrawCube((Vector3){-2.0f, 1.25f,  0   }, 0.1f, 2.5f, 4.0f, wallcolor);
+    //DrawCube((Vector3){ 2.0f, 1.25f,  0   }, 0.1f, 2.5f, 4.0f, wallcolor);
+    ////Back wall behind the camera
+    //DrawCube((Vector3){0, 1.25f, 2.00f}, 4.0f, 2.5f, 0.1f, wallcolor);
+    ////Roof (sideways wall)
+    //DrawCube((Vector3){0, 2.5f, 0}, 4.0f, 0.1f, 4.0f, DARKGRAY);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){0, 1.25f, -2.0f},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){4.0f, 2.5f, 0.1f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){-2.0f, 1.25f, 0},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){0.1f, 2.5f, 4.0f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){2.0f, 1.25f, 0},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){0.1f, 2.5f, 4.0f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){0, 1.25f, 2.0f},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){4.0f, 2.5f, 0.1f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){0, 2.5f, 0},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){4.0f, 0.1f, 4.0f},
+    WHITE);
 
 
 }
@@ -270,10 +315,24 @@ void DrawRoom()
 int main(void)
 {
     InitWindow(1280, 720, "Café Room — Chairs Example");
-    
+
+
+
+
     // ------------------------------------------------------------
 // GENERATE PROCEDURAL TEXTURES
 // ------------------------------------------------------------
+
+//wall texture
+
+// Load your PNG
+texWall = LoadTexture("textures/TexWall.png");
+
+// Build the wall model using the same pattern as the legs
+Mesh wallMesh = GenMeshPlane(4.0f, 4.0f, 1, 1);
+wall = LoadModelFromMesh(wallMesh);
+wall.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
+
 
 // ---- RUST TEXTURE ----
 Image rustImg = GenImagePerlinNoise(64, 64, 0, 0, 6.0f);
@@ -305,6 +364,7 @@ for (int y = 0; y < rustImg.height; y++)
     }
 }
 
+
 texRust = LoadTextureFromImage(rustImg);
 UnloadImage(rustImg);
 
@@ -326,6 +386,8 @@ UnloadImage(fabricImg);
     Image img = GenImageColor(1, 1, WHITE);
     Texture2D fogTex = LoadTextureFromImage(img);
     UnloadImage(img);
+
+
 
 
     float globalDim = 0.55f;   // 55% brightness
@@ -352,18 +414,20 @@ UnloadImage(fabricImg);
         ClearBackground(RAYWHITE);ClearBackground((Color){10, 10, 12, 255});   // dead industrial gray
         BeginMode3D(cam);
         
-        float globalDim = 0.55f;   // 55% brightness
-        Color coldTint = { 180, 190, 220, 255 };  // bluish-gray
+        //float globalDim = 0.55f;   // 55% brightness
+        //Color coldTint = { 180, 190, 220, 255 };  // bluish-gray
 
         
         
         // Apply cold tint + dimming to everything
-        rlColor4f(
-        (coldTint.r / 255.0f) * globalDim,
-        (coldTint.g / 255.0f) * globalDim,
-        (coldTint.b / 255.0f) * globalDim,
-        1.0f
-    );
+        //rlColor4f(
+        //    (coldTint.r / 255.0f) * globalDim,
+        //    (coldTint.g / 255.0f) * globalDim,
+        //    (coldTint.b / 255.0f) * globalDim,
+        //    1.0f
+        //);
+        //rlColor4f(1, 1, 1, 1);
+
 
         DrawRoom();
         DrawCentralBlock(DARKGRAY, GRAY, wallcolor);
@@ -438,6 +502,7 @@ DrawBillboard(cam, fogTex, fogPos, 4.0f, fogColor);
     UnloadTexture(texRust);
     UnloadTexture(texMetal);
     UnloadTexture(texFabric);
+    UnloadTexture(texWall);
 
 
     CloseWindow();
