@@ -77,7 +77,7 @@ void DrawCafeChair(void)
     // -----------------------------
     // BACKREST (single cube)
     // -----------------------------
-    float backOffset = 0.04f;
+    float backOffset = 0.0f;
 
     Vector3 backCenter = {
         0.0f,
@@ -100,10 +100,10 @@ void DrawCafeChair(void)
 
     float o = seatW/3.0f - legR;
     Vector3 legPos[4] = {
-        { +o, 10.0f, +o },
-        { -o, 10.0f, +o },
-        { +o, 10.0f, -o },
-        { -o, 10.0f, -o }
+        { +o, 0.0f, +o },
+        { -o, 0.0f, +o },
+        { +o, 0.0f, -o },
+        { -o, 0.0f, -o }
     };
 
     // Create a reusable textured leg model (created once per program run)
@@ -119,8 +119,8 @@ void DrawCafeChair(void)
 
     for (int i = 0; i < 4; i++)
     {
-        Vector3 legCenter = { legPos[i].x, legH/2.0f, legPos[i].z };
-        DrawModel(legModel, legCenter, 1.0f, WHITE);
+        Vector3 legCenter = { legPos[i].x, legH/10.0f, legPos[i].z };
+        DrawModel(legModel, legCenter, 1.0f, BROWN);
     }
 }
 
