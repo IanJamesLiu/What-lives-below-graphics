@@ -100,20 +100,27 @@ void DrawCafeChair(void)
 
     float o = seatW/3.0f - legR;
     Vector3 legPos[4] = {
-        { +o, 0.0f, +o },
-        { -o, 0.0f, +o },
-        { +o, 0.0f, -o },
-        { -o, 0.0f, -o }
+        { +o, 10.0f, +o },
+        { -o, 10.0f, +o },
+        { +o, 10.0f, -o },
+        { -o, 10.0f, -o }
     };
+
+    // Create a reusable textured leg model (created once per program run)
+    static Model legModel = {0};
+    static bool legModelReady = false;
+    if (!legModelReady)
+    {
+        Mesh legMesh = GenMeshCylinder(legR, legH, 16);
+        legModel = LoadModelFromMesh(legMesh);
+        legModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texMetal;
+        legModelReady = true;
+    }
 
     for (int i = 0; i < 4; i++)
     {
-        DrawCylinder(
-            (Vector3){legPos[i].x, legH/4.0f, legPos[i].z},
-            legR, legR, legH,
-            16,
-            legColor
-        );
+        Vector3 legCenter = { legPos[i].x, legH/2.0f, legPos[i].z };
+        DrawModel(legModel, legCenter, 1.0f, WHITE);
     }
 }
 
@@ -332,8 +339,8 @@ UnloadImage(fabricImg);
     cam.fovy     = 45.0f;
     cam.projection = CAMERA_PERSPECTIVE;
 
-    //DisableCursor();  // Mouse look
-    //SetMousePosition(GetScreenWidth()/2, GetScreenHeight()/2);  // virtual lock
+    DisableCursor();  // Mouse look
+    SetMousePosition(GetScreenWidth()/2, GetScreenHeight()/2);  // virtual lock
 
     SetTargetFPS(60);
 
