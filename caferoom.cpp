@@ -16,9 +16,12 @@ Texture2D texRust;
 Texture2D texMetal;
 Texture2D texFabric;
 Texture2D fogTex;
+Texture2D TexTableNoise;
 
 float fogRadius = 20.0f;                  // how far the fog extends
 Model wall;
+Model TableTopModel;
+Model TableTopDisk;
 
 
 
@@ -151,6 +154,7 @@ void DrawRoundTable(void)
     // -----------------------------
     // DRAW POLE
     // -----------------------------
+    Color polewhite = {0xfe, 0xfe, 0xfe, 0xff};
     DrawCylinder(
         (Vector3){0.0f, baseThickness - 0.12f + poleHeight/2.0f, 0.0f},
         poleRadius, poleRadius,
@@ -162,14 +166,33 @@ void DrawRoundTable(void)
     // -----------------------------
     // DRAW TABLETOP
     // -----------------------------
-    DrawCylinder(
-        (Vector3){0.0f, baseThickness - 0.12f + poleHeight + 0.12f + topThickness/2.0f, 0.0f},
-        topRadius, topRadius,
-        topThickness,
-        32,
-        topColor
+    Color otherwhite = {0xfd, 0xfd, 0xfd, 0xff};
+    Vector3 topPos = {
+    0.0f,
+    baseThickness - 0.12f + poleHeight + 0.12f + topThickness/2.0f,
+    0.0f
+    };
+
+    Vector3 diskPos = {
+    0.0f,
+    baseThickness - 0.12f + poleHeight + 0.12f + topThickness,
+    0.0f
+    };
+
+    diskPos.y += 0.025f;
+
+    DrawModel(TableTopModel, topPos, 1.0f, otherwhite);
+
+    DrawModelEx(
+    TableTopDisk,
+    diskPos,
+    (Vector3){1,0,0},   // rotate flat
+    00.0f,
+    (Vector3){1,1,1},
+    otherwhite
     );
-}
+
+    }
 
 
 
@@ -238,6 +261,13 @@ void DrawRoom()
     DrawModel(wall, (Vector3){0, -0.01f, 0}, 1.0f, WHITE);
     rlEnableBackfaceCulling();
 
+    DrawModelEx(
+    wallCubeModel,
+    (Vector3){0, 0.0f, 0},
+    (Vector3){1,0,0}, 00.0f,
+    (Vector3){4.0f, 0.1f, 4.0f},
+    WHITE
+    );
 
 
     DrawModelEx(wallCubeModel,
@@ -290,15 +320,16 @@ int main(void)
 //wall texture
 
 // Load your PNG
+TexTableNoise = LoadTexture("textures/TableTop.png");
 texWall = LoadTexture("textures/TexWall.png");
 Texture2D TexWallUpHalf = LoadTexture("textures/TexWallUpHalf.png");
 Texture2D TexWallDownHalf = LoadTexture("textures/TexWalldownhalf.png");
 
 
 // Build the wall model using the same pattern as the legs
-Mesh wallMesh = GenMeshPlane(4.0f, 4.0f, 1, 1);
-wall = LoadModelFromMesh(wallMesh);
-wall.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
+Mesh meshTop = GenMeshCylinder(0.40f, 0.04f, 32);  // radius, height, slices
+TableTopModel = LoadModelFromMesh(meshTop);
+TableTopModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = TexTableNoise;
 
 
 // ---- RUST TEXTURE ----
@@ -353,7 +384,6 @@ for (int y = 0; y < fog.height; y++)
 
 fogTex = LoadTextureFromImage(fog);
 
-
 // ---- METAL TEXTURE ----
 Image metalImg = GenImageWhiteNoise(64, 64, 0.15f);
 ImageColorTint(&metalImg, (Color){150, 150, 160, 255});
@@ -386,6 +416,11 @@ UnloadImage(fabricImg);
     Model cubeModelDown = LoadModelFromMesh(cubeMesh);
     cubeModelDown.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = TexWallDownHalf;
 
+    //table top model
+    TableTopModel = LoadModelFromMesh(meshTop);
+    TableTopModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = TexTableNoise;
+    // top textures
+    Mesh meshDisk = GenMeshCylinder(0.40f, 0.01f, 32);  // height = 0 → flat disk
 
 
 
@@ -505,7 +540,9 @@ rlSetBlendMode(RL_BLEND_ALPHA);
     UnloadTexture(texMetal);
     UnloadTexture(texFabric);
     UnloadTexture(texWall);
+    UnloadTexture(TexTableNoise);
     UnloadImage(fog);
+    UnloadModel(TableTopModel);
 
 
     CloseWindow();
