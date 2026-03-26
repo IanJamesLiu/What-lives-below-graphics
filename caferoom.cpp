@@ -308,7 +308,7 @@ void DrawRoom()
 // ------------------------------------------------------------
 int main(void)
 {
-    InitWindow(1280, 720, "Café Room — Chairs Example");
+    InitWindow(1280, 720, "Cafeteria for What Lives Below");
 
     float fogSize = 100.0f;   // or whatever size you want
 
@@ -443,7 +443,15 @@ UnloadImage(fabricImg);
 
     while (!IsKeyPressed(KEY_ESCAPE))
     {
-        UpdateCamera(&cam, CAMERA_FREE);  // old Raylib API
+        UpdateCameraPro(&cam,
+        (Vector3){ 0, 0, 0 },  // no movement (WASD disabled)
+        (Vector3){
+        GetMouseDelta().x * 0.05f,   // yaw (left/right look)
+        GetMouseDelta().y * 0.05f,   // pitch (up/down look)
+        0.0f                          // roll
+        },
+        0.0f
+    );
 
         BeginDrawing();
         ClearBackground(RAYWHITE);ClearBackground((Color){10, 10, 12, 255});   // dead industrial gray
