@@ -1,0 +1,742 @@
+#include "raylib.h"
+#include "rlgl.h"
+#include "rlights.h"
+#include "math.h"
+
+Color wallcolor = {73, 73, 81, 255 };
+Color wallcolor2 = {78, 78, 86, 255};
+Color metalBase = { 74, 74, 79, 255 };
+Color rustLight = { 160, 90, 44, 255 };
+Color rustDark = { 107, 58, 30, 255 };
+Color metalDirty = { 58, 58, 63, 255 };
+Color fogColor = { 18, 18, 20, 2 };   // pale dusty fog
+// Global textures (initialized in main)
+Texture2D texWall;
+Texture2D texRust;
+Texture2D texMetal;
+Texture2D texFabric;
+Texture2D fogTex;
+Texture2D TexTableNoise;
+Texture2D texCabinet;
+Texture2D texDesk;
+
+
+float fogRadius = 20.0f;                  // how far the fog extends
+Model wall;
+Model TableTopModel;
+Model TableTopDisk;
+Model cabinetModel;
+Model deskTopModel;
+Model deskLegModel;
+
+
+
+
+Vector3 ForwardFromCamera(Camera3D cam)
+{
+    // Compute forward vector manually (Pi‑safe)
+    Vector3 f;
+    f.x = cam.target.x - cam.position.x;
+    f.y = cam.target.y - cam.position.y;
+    f.z = cam.target.z - cam.position.z;
+
+    // Normalize
+    float mag = sqrtf(f.x*f.x + f.y*f.y + f.z*f.z);
+    if (mag > 0)
+    {
+        f.x /= mag;
+        f.y /= mag;
+        f.z /= mag;
+    }
+    return f;
+}
+
+//prepare cabinet 
+void InitCabinetTest(void)
+{
+    texCabinet = LoadTexture("textures/cabinet.png");
+
+    Mesh m = GenMeshCube(0.6f, 0.6f, 0.5f);
+    cabinetModel = LoadModelFromMesh(m);
+
+    cabinetModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texCabinet;
+}
+//paper drawing function
+void DrawPaper(Vector3 pos, float rotationDeg, float scale)
+{
+    float width  = 0.21f * scale;
+    float height = 0.297f * scale;
+    float thick  = 0.01f;
+
+    Vector3 axis = {0.0f, 1.0f, 0.0f};
+
+    rlPushMatrix();
+        rlTranslatef(pos.x + 5.0f, pos.y, pos.z);   // SHIFTED +5
+        rlRotatef(rotationDeg, axis.x, axis.y, axis.z);
+        DrawCube((Vector3){0,0,0}, width, thick, height, RAYWHITE);
+        DrawCubeWires((Vector3){0,0,0}, width, thick, height, LIGHTGRAY);
+    rlPopMatrix();
+}
+//the star of the show, the cabinet
+void DrawCabinetTest(void)
+{
+    Vector3 corners[4] = 
+    {
+        { 5.0f - 1.5f, 0.3f, -1.5f },
+        { 5.0f + 1.5f, 0.3f, -1.5f },
+        { 5.0f - 1.5f, 0.3f,  1.5f },
+        { 5.0f + 1.5f, 0.3f,  1.5f }
+    };
+
+
+    for (int i = 0; i < 4; i++)
+    {
+        Vector3 base = corners[i];
+
+        DrawModel(cabinetModel, base, 1.0f, WHITE);
+
+        DrawModel(cabinetModel,
+                  (Vector3){ base.x, base.y + 0.6f, base.z },
+                  1.0f,
+                  WHITE);
+    }
+}
+//a nice centerpiece, the desk
+void DrawDesk(void)
+{
+    // Desk top
+    DrawModel(deskTopModel, (Vector3){5.0f, 1.0f, 0.0f}, 1.0f, WHITE);
+
+    float lx = 1.3f;
+    float lz = 0.6f;
+
+    // Legs
+    DrawModel(deskLegModel, (Vector3){5.0f + lx, 0.5f,  lz}, 1.0f, WHITE);
+    DrawModel(deskLegModel, (Vector3){5.0f - lx, 0.5f,  lz}, 1.0f, WHITE);
+    DrawModel(deskLegModel, (Vector3){5.0f + lx, 0.5f, -lz}, 1.0f, WHITE);
+    DrawModel(deskLegModel, (Vector3){5.0f - lx, 0.5f, -lz}, 1.0f, WHITE);
+}
+
+// ------------------------------------------------------------
+// Draw cafe chair, another star
+// ------------------------------------------------------------
+void DrawCafeChair(void)
+{
+    // -----------------------------
+    // CHAIR DIMENSIONS
+    // -----------------------------
+    float seatW = 0.45f;
+    float seatH = 0.05f;
+
+    float legR = 0.03f;
+    float legH = 0.28f;
+
+    float backW = seatW;
+    float backH = 0.35f;
+    float backT = 0.05f;
+
+    // -----------------------------
+    // SEAT (single cube)
+    // -----------------------------
+    Vector3 seatCenter = {
+        0.0f,
+        legH + seatH/2.0f,
+        0.0f
+    };
+
+    Color seatColor = (Color){120, 70, 50, 255};
+    Mesh seatMesh = GenMeshCube(seatW, seatH, seatW);
+    Model seatModel = LoadModelFromMesh(seatMesh);
+    seatModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texFabric;
+
+    DrawModel(seatModel, seatCenter, 1.0f, WHITE);
+
+
+    // -----------------------------
+    // BACKREST (single cube)
+    // -----------------------------
+    float backOffset = 0.0f;
+
+    Vector3 backCenter = {
+        0.0f,
+        legH + seatH + backH/2.0f,
+        -seatW/2.0f + backT/2.0f + backOffset
+    };
+
+    Color backColor = (Color){100, 60, 45, 255};
+    Mesh backMesh = GenMeshCube(backW, backH, backT);
+    Model backModel = LoadModelFromMesh(backMesh);
+    backModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texFabric;
+
+    DrawModel(backModel, backCenter, 1.0f, WHITE);
+
+
+    // -----------------------------
+    // LEGS (single cylinder each)
+    // -----------------------------
+    Color legColor = (Color){80, 60, 50, 255};
+
+    float o = seatW/3.0f - legR;
+    Vector3 legPos[4] = {
+        { +o, 0.0f, +o },
+        { -o, 0.0f, +o },
+        { +o, 0.0f, -o },
+        { -o, 0.0f, -o }
+    };
+
+    // Create a reusable textured leg model (created once per program run)
+    static Model legModel = {0};
+    static bool legModelReady = false;
+    if (!legModelReady)
+    {
+        Mesh legMesh = GenMeshCylinder(legR, legH, 16);
+        legModel = LoadModelFromMesh(legMesh);
+        legModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texMetal;
+        legModelReady = true;
+    }
+
+    for (int i = 0; i < 4; i++)
+    {
+        Vector3 legCenter = { legPos[i].x, legH/10.0f, legPos[i].z };
+        DrawModel(legModel, legCenter, 1.0f, BROWN);
+    }
+}
+
+// ------------------------------------------------------------
+// Draw round cafe table
+// ------------------------------------------------------------
+void DrawRoundTable(void)
+{
+    // Table dimensions
+    float topRadius = 0.40f;     // tabletop radius
+    float topThickness = 0.04f;  // tabletop thickness
+
+    float poleRadius = 0.05f;    // center support column
+    float poleHeight = 0.25f;    // height from floor to tabletop
+
+    float baseRadius = 0.30f;    // round base
+    float baseThickness = 0.03f; // base thickness
+
+    // Colors (adjust as you like)
+    Color topColor  = (Color){180, 180, 180, 255};  // light gray tabletop
+    Color poleColor = (Color){120, 120, 120, 255};  // darker gray pole
+    Color baseColor = (Color){100, 100, 100, 255};  // dark gray base
+
+
+    // -----------------------------
+    // DRAW POLE
+    // -----------------------------
+    Color polewhite = {0xfe, 0xfe, 0xfe, 0xff};
+    DrawCylinder(
+        (Vector3){0.0f, baseThickness - 0.12f + poleHeight/2.0f, 0.0f},
+        poleRadius, poleRadius,
+        poleHeight,
+        32,
+        poleColor
+    );
+
+    // -----------------------------
+    // DRAW TABLETOP
+    // -----------------------------
+    Color otherwhite = {0xfd, 0xfd, 0xfd, 0xff};
+    Vector3 topPos = {
+    0.0f,
+    baseThickness - 0.12f + poleHeight + 0.12f + topThickness/2.0f,
+    0.0f
+    };
+
+    Vector3 diskPos = {
+    0.0f,
+    baseThickness - 0.12f + poleHeight + 0.12f + topThickness,
+    0.0f
+    };
+
+    diskPos.y += 0.025f;
+
+    DrawModel(TableTopModel, topPos, 1.0f, otherwhite);
+
+    DrawModelEx(
+    TableTopDisk,
+    diskPos,
+    (Vector3){1,0,0},   // rotate flat
+    00.0f,
+    (Vector3){1,1,1},
+    otherwhite
+    );
+
+    }
+
+
+
+// ------------------------------------------------------------
+// Draw central block
+// ------------------------------------------------------------
+void DrawCentralBlock(Color outerColor, Color innerColor, Color frontColor, Model wallModel, Model upModel, Model downModel)
+{
+    float w = 1.0f;
+    float h = 1.2f;
+    float d = 1.0f;
+    float t = 0.05f;
+
+    float cx = 0;
+    float cy = 0.6f;
+    float cz = 0;
+
+    Vector3 pos;
+
+    float innerDepth = d - t*2;
+    float innerWidth = w - t*2;
+
+    // LEFT WALL
+    pos = { cx - w/2 + t/2, cy, cz };
+    DrawModelEx(wallModel, pos, {0,1,0}, 0.0f, {t, h, innerDepth}, WHITE);
+
+    // RIGHT WALL
+    pos = { cx + w/2 - t/2, cy, cz };
+    DrawModelEx(wallModel, pos, {0,1,0}, 0.0f, {t, h, innerDepth}, WHITE);
+
+    // FRONT WALL (top)
+    float holeHeight = 0.5f;
+    float topPiece = (h - holeHeight) / 2.0f;
+    float bottomPiece = topPiece;
+
+    pos = { cx, cy + (holeHeight/2.0f + topPiece/2.0f), cz + d/2 + t/2 };
+    DrawModelEx(downModel, pos, {0,1,0}, 0.0f, {innerWidth, topPiece, t}, WHITE);
+
+    // FRONT WALL (bottom)
+    pos = { cx, cy - (holeHeight/2.0f + bottomPiece/2.0f), cz + d/2 + t/2 };
+    DrawModelEx(upModel, pos, {0,1,0}, 0.0f, {innerWidth, bottomPiece, t}, WHITE);
+
+    // BACK WALL
+    pos = { cx, cy, cz - d/2 + t/2 };
+    DrawModelEx(wallModel, pos, {0,1,0}, 0.0f, {innerWidth, h, t}, WHITE);
+
+    // TOP
+    pos = { cx, cy + h/2 - t/2, cz };
+    DrawModelEx(wallModel, pos, {0,1,0}, 0.0f, {w, t, d}, WHITE);
+}
+
+// ------------------------------------------------------------
+// Draw room
+// ------------------------------------------------------------
+void DrawRoom()
+{
+    static Model wallCubeModel;
+{
+    Mesh cubeMesh = GenMeshCube(1.0f, 1.0f, 1.0f);   // unit cube
+    wallCubeModel = LoadModelFromMesh(cubeMesh);
+    wallCubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
+}
+
+
+    rlDisableBackfaceCulling();
+    DrawModel(wall, (Vector3){0, -0.01f, 0}, 1.0f, WHITE);
+    rlEnableBackfaceCulling();
+
+    DrawModelEx(
+    wallCubeModel,
+    (Vector3){0, 0.0f, 0},
+    (Vector3){1,0,0}, 00.0f,
+    (Vector3){4.0f, 0.1f, 4.0f},
+    WHITE
+    );
+
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){0, 1.25f, -2.0f},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){4.0f, 2.5f, 0.1f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){-2.0f, 1.25f, 0},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){0.1f, 2.5f, 4.0f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){2.0f, 1.25f, 0},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){0.1f, 2.5f, 4.0f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){0, 1.25f, 2.0f},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){4.0f, 2.5f, 0.1f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){0, 2.5f, 0},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){4.0f, 0.1f, 4.0f},
+    WHITE);
+
+
+}
+// ------------------------------------------------------------
+// ROOM 2
+// ------------------------------------------------------------
+void DrawRoom2()
+{
+    static Model wallCubeModel;
+    {
+        Mesh cubeMesh = GenMeshCube(1.0f, 1.0f, 1.0f);
+        wallCubeModel = LoadModelFromMesh(cubeMesh);
+        wallCubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
+    }
+
+    float X = 5.0f;   // archives room offset
+
+    rlDisableBackfaceCulling();
+    DrawModel(wall, (Vector3){X, -0.01f, 0}, 1.0f, WHITE);
+    rlEnableBackfaceCulling();
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){X, 0.0f, 0},
+        (Vector3){1,0,0}, 0.0f,
+        (Vector3){4.0f, 0.1f, 4.0f},
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){X, 1.25f, -2.0f},
+        (Vector3){0,1,0}, 0.0f,
+        (Vector3){4.0f, 2.5f, 0.1f},
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){X - 2.0f, 1.25f, 0},   // left wall
+        (Vector3){0,1,0}, 0.0f,
+        (Vector3){0.1f, 2.5f, 4.0f},
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){X + 2.0f, 1.25f, 0},   // right wall
+        (Vector3){0,1,0}, 0.0f,
+        (Vector3){0.1f, 2.5f, 4.0f},
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){X, 1.25f, 2.0f},
+        (Vector3){0,1,0}, 0.0f,
+        (Vector3){4.0f, 2.5f, 0.1f},
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){X, 2.5f, 0},
+        (Vector3){0,1,0}, 0.0f,
+        (Vector3){4.0f, 0.1f, 4.0f},
+        WHITE
+    );
+}
+
+// ------------------------------------------------------------
+// MAIN PROGRAM
+// ------------------------------------------------------------
+int main(void)
+{
+    InitWindow(1280, 720, "Cafeteria for What Lives Below");
+
+    float fogSize = 100.0f;   // or whatever size you want
+
+
+// ------------------------------------------------------------
+// GENERATE PROCEDURAL TEXTURES
+// ------------------------------------------------------------
+
+//wall texture
+
+// Load your PNG
+TexTableNoise = LoadTexture("textures/TableTop.png");
+texWall = LoadTexture("textures/TexWall.png");
+Texture2D TexWallUpHalf = LoadTexture("textures/TexWallUpHalf.png");
+Texture2D TexWallDownHalf = LoadTexture("textures/TexWalldownhalf.png");
+texDesk = LoadTexture("textures/TableTex.png");
+
+
+// Build the wall model using the same pattern as the legs
+Mesh meshTop = GenMeshCylinder(0.40f, 0.04f, 32);  // radius, height, slices
+TableTopModel = LoadModelFromMesh(meshTop);
+TableTopModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = TexTableNoise;
+
+
+// ---- RUST TEXTURE ----
+Image rustImg = GenImagePerlinNoise(64, 64, 0, 0, 6.0f);
+ImageColorTint(&rustImg, (Color){180, 90, 40, 255}); // rusty brown
+
+for (int y = 0; y < rustImg.height; y++)
+{
+    for (int x = 0; x < rustImg.width; x++)
+    {
+        Color c = GetImageColor(rustImg, x, y);
+
+        // Dark corrosion
+        if ((x + y + (rand() % 20)) % 17 == 0)
+        {
+            c.r *= 0.5f;
+            c.g *= 0.5f;
+            c.b *= 0.5f;
+        }
+
+        // Orange rust flakes
+        if ((x * y + rand() % 50) % 113 == 0)
+        {
+            c.r = 220;
+            c.g = 110;
+            c.b = 40;
+        }
+
+        ImageDrawPixel(&rustImg, x, y, c);
+    }
+}
+
+
+texRust = LoadTextureFromImage(rustImg);
+UnloadImage(rustImg);
+
+Image fog = GenImagePerlinNoise(256, 256, 0, 0, 8.0f);
+
+// Make it soft gray instead of white
+ImageColorTint(&fog, (Color){80, 80, 90, 255});
+
+// Add transparency
+for (int y = 0; y < fog.height; y++)
+{
+    for (int x = 0; x < fog.width; x++)
+    {
+        Color c = GetImageColor(fog, x, y);
+        c.a = 120; // soft alpha
+        ImageDrawPixel(&fog, x, y, c);
+    }
+}
+
+fogTex = LoadTextureFromImage(fog);
+
+// ---- METAL TEXTURE ----
+Image metalImg = GenImageWhiteNoise(64, 64, 0.15f);
+ImageColorTint(&metalImg, (Color){150, 150, 160, 255});
+texMetal = LoadTextureFromImage(metalImg);
+UnloadImage(metalImg);
+
+
+// ---- FABRIC TEXTURE ----
+Image fabricImg = GenImagePerlinNoise(64, 64, 0, 0, 8.0f);
+ImageColorTint(&fabricImg, (Color){120, 120, 130, 255});
+texFabric = LoadTextureFromImage(fabricImg);
+UnloadImage(fabricImg);
+
+    
+    Image img = GenImageColor(1, 1, WHITE);
+    Texture2D fogTex = LoadTextureFromImage(img);
+    UnloadImage(img);
+
+// texwall
+    Mesh cubeMesh = GenMeshCube(1.0f, 1.0f, 1.0f);
+    Model cubeModel = LoadModelFromMesh(cubeMesh);
+    cubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
+
+// texwall up and down half
+    // TOP HALF MODEL
+    Model cubeModelUp = LoadModelFromMesh(cubeMesh);
+    cubeModelUp.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = TexWallUpHalf;
+
+    // BOTTOM HALF MODEL
+    Model cubeModelDown = LoadModelFromMesh(cubeMesh);
+    cubeModelDown.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = TexWallDownHalf;
+
+    //table top model
+    TableTopModel = LoadModelFromMesh(meshTop);
+    TableTopModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = TexTableNoise;
+    // top textures
+    Mesh meshDisk = GenMeshCylinder(0.40f, 0.01f, 32);  // height = 0 → flat disk
+
+
+    // Desk top model
+    Mesh deskTopMesh = GenMeshCube(3.0f, 0.2f, 1.5f);
+    deskTopModel = LoadModelFromMesh(deskTopMesh);
+    deskTopModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texDesk;
+
+    // Desk leg model
+    Mesh deskLegMesh = GenMeshCube(0.2f, 1.0f, 0.2f);
+    deskLegModel = LoadModelFromMesh(deskLegMesh);
+    deskLegModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texDesk;
+
+
+
+
+
+    float globalDim = 0.55f;   // 55% brightness
+    Color coldTint = { 180, 190, 220, 255 };  // bluish-gray
+
+
+    Camera cam = {0};
+    cam.position = (Vector3){0.0f, 0.75f, 1.8f};   // Your chosen camera
+    cam.target   = (Vector3){0.0f, 1.0f, 0.0f};
+    cam.up       = (Vector3){0.0f, 1.0f, 0.0f};
+    cam.fovy     = 45.0f;
+    cam.projection = CAMERA_PERSPECTIVE;
+
+    DisableCursor();  // Mouse look
+    SetMousePosition(GetScreenWidth()/2, GetScreenHeight()/2);  // virtual lock
+
+    SetTargetFPS(60);
+
+    InitCabinetTest();
+
+    while (!IsKeyPressed(KEY_ESCAPE))
+    {
+        UpdateCamera(&cam, CAMERA_FREE);
+
+        /*UpdateCameraPro(&cam,
+        (Vector3){ 0, 0, 0 },  // no movement (WASD disabled)
+        (Vector3){
+        GetMouseDelta().x * 0.05f,   // yaw (left/right look)
+        GetMouseDelta().y * 0.05f,   // pitch (up/down look)
+        0.0f                          // roll
+        },
+        0.0f
+    );*/
+
+        BeginDrawing();
+        ClearBackground(RAYWHITE);ClearBackground((Color){10, 10, 12, 255});   // dead industrial gray
+        BeginMode3D(cam);
+        
+        float globalDim = 0.001f;   // 00.01% brightness
+        Color coldTint = { 180, 190, 220, 255 };  // bluish-gray
+
+        
+        
+        // Apply cold tint + dimming to everything
+        rlColor4f(
+            (coldTint.r / 255.0f) * globalDim,
+            (coldTint.g / 255.0f) * globalDim,
+            (coldTint.b / 255.0f) * globalDim,
+            1.0f
+        );
+
+        DrawGrid(10, 1.0f);
+
+        DrawCabinetTest();
+        DrawDesk();
+
+        // ALL PAPERS SHIFTED BY +5 ON X
+        DrawPaper((Vector3){0.0f, 1.1f, 0.0f}, 45.0f, 1.0f);
+        DrawPaper((Vector3){-0.5f, 0.1f, 0.5f}, -30.0f, 0.8f);
+        DrawPaper((Vector3){0.5f, 0.1f, -0.5f}, 30.0f, 0.8f);
+        DrawPaper((Vector3){-0.8f, 0.1f, -0.2f}, -30.0f, 0.8f);
+        DrawPaper((Vector3){0.8f, 0.1f, 0.2f}, 30.0f, 0.8f);
+        DrawPaper((Vector3){0.1f, 0.1f, 0.8f}, 45.0f, 0.8f);
+        DrawPaper((Vector3){-0.1f, 0.1f, -1.2f}, -45.0f, 0.8f);
+        DrawPaper((Vector3){1.3f, 0.1f, -0.8f}, 60.0f, 0.8f);
+        DrawPaper((Vector3){-1.3f, 0.1f, 0.8f}, -60.0f, 0.8f);
+        DrawPaper((Vector3){-1.5f, 1.2f, -1.5f}, 15.0f, 0.8f);
+        DrawPaper((Vector3){1.5f, 1.2f, 1.5f}, -15.0f, 0.8f);
+        DrawPaper((Vector3){-1.5f, 1.2f, 1.5f}, 30.0f, 0.8f);
+        DrawPaper((Vector3){1.5f, 1.2f, -1.5f}, -30.0f, 0.8f);
+        DrawPaper((Vector3){0.0f, 0.1f, -2.0f}, 45.0f, 0.8f);
+        DrawPaper((Vector3){0.0f, 0.1f, 2.0f}, -45.0f, 0.8f);
+        DrawPaper((Vector3){2.0f, 0.1f, 0.0f}, -60.0f, 0.8f);
+
+        // Paper stack
+        for (float y = 1.1f; y <= 1.4f; y += 0.01f)
+            DrawPaper((Vector3){-0.3f, y, -0.01f}, 15.0f, 0.8f);
+
+        DrawRoom();
+        DrawRoom2();
+        DrawCentralBlock(DARKGRAY, GRAY, wallcolor, cubeModel, cubeModelUp, cubeModelDown);
+
+        // -------------------------------
+        // TABLE POSITIONS
+        // -------------------------------
+        Vector3 tablePos[4] = {
+            { 1.0f, 0.0f,  1.0f },
+            { 1.0f, 0.0f, -1.0f },
+            {-1.0f, 0.0f,  1.0f },
+            {-1.0f, 0.0f, -1.0f }
+        };
+
+        // -------------------------------
+        // DRAW TABLES
+        // -------------------------------
+        for (int i = 0; i < 4; i++)
+        {
+            rlPushMatrix();
+                rlTranslatef(tablePos[i].x, tablePos[i].y, tablePos[i].z);
+                DrawRoundTable();
+            rlPopMatrix();
+        }
+
+        // -------------------------------
+        // DRAW CHAIRS AROUND TABLES
+        // -------------------------------
+        for (int i = 0; i < 4; i++)
+        {
+            Vector3 p = tablePos[i];
+
+            rlPushMatrix();
+                rlTranslatef(p.x + 0.8f, 0.2f, -0.3f + p.z);
+                rlRotatef(0, 0, 1, 0);      // face sideways
+                rlRotatef(90, 0, 0, 1);      // tilt sideways (lean)
+                DrawCafeChair();
+            rlPopMatrix();
+
+
+            // 118° CHAIR
+            rlPushMatrix();
+                rlTranslatef(p.x - 0.8f, 0.3f, p.z);
+                rlRotatef(90, 0, 1, 0);
+                rlRotatef(131, 90, 0, 1);
+                DrawCafeChair();
+            rlPopMatrix();
+        }
+
+// ---- Dusty fog billboard ----
+Vector3 forward = ForwardFromCamera(cam);
+
+Vector3 fogPos = {
+    cam.position.x + forward.x * 1.0f,
+    cam.position.y + forward.y * 1.0f,
+    cam.position.z + forward.z * 1.0f
+};
+
+Color fogColor = { 10, 10, 11, 60 };
+
+rlSetBlendMode(RL_BLEND_MULTIPLIED);
+DrawBillboard(cam, fogTex, fogPos, fogSize, fogColor);
+rlSetBlendMode(RL_BLEND_ALPHA);
+
+
+
+
+
+        EndMode3D();
+
+        DrawFPS(10, 10);
+        EndDrawing();
+    }
+    
+    UnloadTexture(texRust);
+    UnloadTexture(texMetal);
+    UnloadTexture(texFabric);
+    UnloadTexture(texWall);
+    UnloadTexture(TexTableNoise);
+    UnloadImage(fog);
+    UnloadModel(cabinetModel);
+    UnloadTexture(texCabinet);
+    UnloadModel(TableTopModel);
+
+
+    CloseWindow();
+    return 0;
+}
