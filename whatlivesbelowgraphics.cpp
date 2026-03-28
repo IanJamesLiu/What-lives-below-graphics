@@ -30,6 +30,41 @@ Model deskTopModel;
 Model deskLegModel;
 
 
+void DrawBox(Vector3 pos, Vector3 rotDeg, Vector3 size, Color tint)
+{
+    // Load the textured cube model once
+    static Model boxModel = {0};
+    static bool loaded = false;
+
+    if (!loaded)
+    {
+        Mesh cube = GenMeshCube(1.0f, 1.0f, 1.0f);
+        boxModel = LoadModelFromMesh(cube);
+
+        Texture2D tex = LoadTexture("textures/box.png");
+        boxModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = tex;
+
+        loaded = true;
+    }
+
+    rlPushMatrix();
+
+        // Apply the -5 shift on X
+        rlTranslatef(pos.x - 5.0f, pos.y, pos.z);
+
+        // Apply rotations
+        rlRotatef(rotDeg.x, 1, 0, 0);
+        rlRotatef(rotDeg.y, 0, 1, 0);
+        rlRotatef(rotDeg.z, 0, 0, 1);
+
+        // Apply scaling
+        rlScalef(size.x, size.y, size.z);
+
+        // Draw the textured cube
+        DrawModel(boxModel, (Vector3){0,0,0}, 1.0f, tint);
+
+    rlPopMatrix();
+}
 
 
 Vector3 ForwardFromCamera(Camera3D cam)
@@ -629,6 +664,9 @@ UnloadImage(fabricImg);
 
         DrawCabinetTest();
         DrawDesk();
+        DrawBox((Vector3){0.0f, 0.0f, 0.0f}, (Vector3){0, 45, 0}, (Vector3){1.0f, 1.0f, 1.0f}, DARKGREEN);
+        DrawBox((Vector3){0.0f, 0.0f, 0.6f}, (Vector3){0, 0, 0}, (Vector3){1.0f, 1.0f, 1.0f}, YELLOW);
+        DrawBox((Vector3){0.0f, 1.0f, 0.0f}, (Vector3){0, 30, 0}, (Vector3){1.0f, 1.0f, 1.0f}, DARKGREEN);
 
         // ALL PAPERS SHIFTED BY +5 ON X
         DrawPaper((Vector3){0.0f, 1.1f, 0.0f}, 45.0f, 1.0f);
