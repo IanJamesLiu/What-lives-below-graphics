@@ -8,6 +8,8 @@ Color wallcolor2 = {78, 78, 86, 255};
 Color metalBase = { 74, 74, 79, 255 };
 Color rustLight = { 160, 90, 44, 255 };
 Color rustDark = { 107, 58, 30, 255 };
+Color DARKYELLOW = { 100, 90, 0, 255 };
+Color DARKERGREEN = { 0, 50, 0, 255 };
 Color metalDirty = { 58, 58, 63, 255 };
 Color fogColor = { 18, 18, 20, 2 };   // pale dusty fog
 // Global textures (initialized in main)
@@ -475,6 +477,70 @@ void DrawRoom2()
         WHITE
     );
 }
+// ------------------------------------------------------------
+// ROOM 3
+// ------------------------------------------------------------
+void DrawRoom3()
+{
+    static Model wallCubeModel;
+    {
+        Mesh cubeMesh = GenMeshCube(1.0f, 1.0f, 1.0f);   // unit cube
+        wallCubeModel = LoadModelFromMesh(cubeMesh);
+        wallCubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
+    }
+
+    rlDisableBackfaceCulling();
+    DrawModel(wall, (Vector3){-5.0f, -0.01f, 0}, 1.0f, WHITE);
+    rlEnableBackfaceCulling();
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){-5.0f, 0.0f, 0},
+        (Vector3){1,0,0}, 0.0f,
+        (Vector3){4.0f, 0.1f, 4.0f},
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){-5.0f, 1.25f, -2.0f},
+        (Vector3){0,1,0}, 0.0f,
+        (Vector3){4.0f, 2.5f, 0.1f},
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){-7.0f, 1.25f, 0},   // -5 - 2
+        (Vector3){0,1,0}, 0.0f,
+        (Vector3){0.1f, 2.5f, 4.0f},
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){-3.0f, 1.25f, 0},   // -5 + 2
+        (Vector3){0,1,0}, 0.0f,
+        (Vector3){0.1f, 2.5f, 4.0f},
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){-5.0f, 1.25f, 2.0f},
+        (Vector3){0,1,0}, 0.0f,
+        (Vector3){4.0f, 2.5f, 0.1f},
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){-5.0f, 2.5f, 0},
+        (Vector3){0,1,0}, 0.0f,
+        (Vector3){4.0f, 0.1f, 4.0f},
+        WHITE
+    );
+}
 
 // ------------------------------------------------------------
 // MAIN PROGRAM
@@ -664,9 +730,15 @@ UnloadImage(fabricImg);
 
         DrawCabinetTest();
         DrawDesk();
-        DrawBox((Vector3){0.0f, 0.0f, 0.0f}, (Vector3){0, 45, 0}, (Vector3){1.0f, 1.0f, 1.0f}, DARKGREEN);
-        DrawBox((Vector3){0.0f, 0.0f, 0.6f}, (Vector3){0, 0, 0}, (Vector3){1.0f, 1.0f, 1.0f}, YELLOW);
-        DrawBox((Vector3){0.0f, 1.0f, 0.0f}, (Vector3){0, 30, 0}, (Vector3){1.0f, 1.0f, 1.0f}, DARKGREEN);
+        DrawBox((Vector3){0.0f, 0.25f, 0.0f}, (Vector3){0, 45, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKERGREEN);
+        DrawBox((Vector3){0.0f, 0.25f, 0.6f}, (Vector3){0, 0, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKYELLOW);
+        DrawBox((Vector3){0.0f, 0.75f, 0.0f}, (Vector3){0, 30, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKERGREEN);
+        DrawBox((Vector3){0.0f, 0.75f, 0.6f}, (Vector3){0, 60, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKYELLOW);
+        DrawBox((Vector3){0.0f, 1.25f, 0.0f}, (Vector3){0, 90, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKERGREEN);
+        DrawBox((Vector3){1.75f, 0.25f, 1.75f}, (Vector3){0, 0, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKGRAY);
+        DrawBox((Vector3){1.75f, 0.25f, -1.75f}, (Vector3){0, 0, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKGRAY);
+        DrawBox((Vector3){-1.75f, 0.25f, 1.75f}, (Vector3){0, 0, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKGRAY);
+        DrawBox((Vector3){-1.75f, 0.25f, -1.75f}, (Vector3){0, 0, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKGRAY);
 
         // ALL PAPERS SHIFTED BY +5 ON X
         DrawPaper((Vector3){0.0f, 1.1f, 0.0f}, 45.0f, 1.0f);
@@ -692,6 +764,7 @@ UnloadImage(fabricImg);
 
         DrawRoom();
         DrawRoom2();
+        DrawRoom3();
         DrawCentralBlock(DARKGRAY, GRAY, wallcolor, cubeModel, cubeModelUp, cubeModelDown);
 
         // -------------------------------
