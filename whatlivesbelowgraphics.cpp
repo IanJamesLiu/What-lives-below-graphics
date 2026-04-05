@@ -2,6 +2,7 @@
 #include "rlgl.h"
 #include "rlights.h"
 #include "math.h"
+#include <cstring>
 
 Color wallcolor = {73, 73, 81, 255 };
 Color wallcolor2 = {78, 78, 86, 255};
@@ -21,6 +22,8 @@ Texture2D fogTex;
 Texture2D TexTableNoise;
 Texture2D texCabinet;
 Texture2D texDesk;
+Texture2D texComp;
+Texture2D texStatic;
 
 
 float fogRadius = 20.0f;                  // how far the fog extends
@@ -30,6 +33,174 @@ Model TableTopDisk;
 Model cabinetModel;
 Model deskTopModel;
 Model deskLegModel;
+Model trapModel;
+Model deskModel;
+
+Mesh MergeMeshes(Mesh a, Mesh b)
+{
+    Mesh out = {0};
+
+    out.vertexCount   = a.vertexCount + b.vertexCount;
+    out.triangleCount = a.triangleCount + b.triangleCount;
+
+    out.vertices = (float*)MemAlloc(out.vertexCount * 3 * sizeof(float));
+    out.texcoords = (float*)MemAlloc(out.vertexCount * 2 * sizeof(float));
+    out.indices = (unsigned short*)MemAlloc(out.triangleCount * 3 * sizeof(unsigned short));
+
+    memcpy(out.vertices, a.vertices, a.vertexCount * 3 * sizeof(float));
+    memcpy(out.texcoords, a.texcoords, a.vertexCount * 2 * sizeof(float));
+    memcpy(out.indices, a.indices, a.triangleCount * 3 * sizeof(unsigned short));
+
+    // Offset b’s indices
+    for (int i = 0; i < b.triangleCount * 3; i++)
+        out.indices[a.triangleCount * 3 + i] = b.indices[i] + a.vertexCount;
+
+    // Append b’s vertices + UVs
+    memcpy(out.vertices + a.vertexCount * 3, b.vertices, b.vertexCount * 3 * sizeof(float));
+    memcpy(out.texcoords + a.vertexCount * 2, b.texcoords, b.vertexCount * 2 * sizeof(float));
+
+    UploadMesh(&out, false);
+    return out;
+}
+
+Mesh GenTrap(float bw, float tw, float h, float bd, float td)
+{
+    Mesh m = {0};
+    m.vertexCount = 8;
+    m.triangleCount = 12;
+
+    m.vertices = (float*)MemAlloc(8*3*sizeof(float));
+    m.texcoords = (float*)MemAlloc(8*2*sizeof(float));
+    m.indices = (unsigned short*)MemAlloc(12*3*sizeof(unsigned short));
+
+    float hb = bw/2, ht = tw/2;
+    float hbd = bd/2, htd = td/2;
+
+    float v[24] = {
+    // bottom (rotated)
+    -hb, -hbd, 0,
+     hb, -hbd, 0,
+     hb,  hbd, 0,
+    -hb,  hbd, 0,
+
+    // top (rotated)
+    -ht, -htd, -h,
+     ht, -htd, -h,
+     ht,  htd, -h,
+    -ht,  htd, -h
+};
+
+    memcpy(m.vertices, v, sizeof(v));
+
+    float uv[16] = {
+        0,0, 1,0, 1,1, 0,1,
+        0,0, 1,0, 1,1, 0,1
+    };
+    memcpy(m.texcoords, uv, sizeof(uv));
+
+    unsigned short ind[36] = {
+    // bottom
+    0,1,2,  0,2,3,
+
+    // top
+    4,6,5,  4,7,6,
+
+    // sides
+    0,4,5,  0,5,1,
+    1,5,6,  1,6,2,
+    2,6,7,  2,7,3,
+    3,7,4,  3,4,0
+    };
+
+    memcpy(m.indices, ind, sizeof(ind));
+
+    UploadMesh(&m, false);
+    return m;
+}
+void DrawCornerDesk(Vector3 pos, float rot)
+{
+    rlPushMatrix();
+        rlTranslatef(pos.x, pos.y, pos.z);
+        rlRotatef(rot, 0, 1, 0);
+        DrawModel(deskModel, (Vector3){0,0,0}, 1.0f, WHITE);
+    rlPopMatrix();
+}
+
+/*void DrawCornerDesk(Vector3 pos, float rotationDeg)
+{
+
+
+    float topW = 1.5f;   // width of each wing
+    float topD = 0.6f;   // depth of each wing
+    float topH = 1.0f;   // height above ground
+
+    float legH = 0.5f;
+
+    float h = 0.85f; // table height
+
+    Vector3 unit = { 1.0f/4.0f, 1.0f, 1.0f/2.0f };
+
+    // A: top-left tile
+    DrawModelEx(
+        deskTopModel,
+        (Vector3){pos.x + 0.0f, pos.y + h, pos.z + 0.0f},
+        (Vector3){0,1,0},
+        0.0f,
+        unit,
+        WHITE
+    );
+
+    // B: top-right tile
+    DrawModelEx(
+        deskTopModel,
+        (Vector3){pos.x + 0.75f, pos.y + h, pos.z + 0.0f},
+        (Vector3){0,1,0},
+        0.0f,
+        unit,
+        WHITE
+    );
+
+    // C: bottom-right tile
+    DrawModelEx(
+        deskTopModel,
+        (Vector3){pos.x + 0.75f, pos.y + h, pos.z + 0.75f},
+        (Vector3){0,1,0},
+        0.0f,
+        unit,
+        WHITE
+    );
+
+
+    // -------------------------
+    // LEGS
+    // -------------------------
+
+    // A bottom-left corner
+DrawModel(deskLegModel,
+          (Vector3){pos.x - 0.3f, pos.y + legH/2, pos.z - 0.3f},
+          1.0f,
+          GRAY);
+
+// A top-left corner
+DrawModel(deskLegModel,
+          (Vector3){pos.x - 0.3f, pos.y + legH/2, pos.z + 0.3f},
+          1.0f,
+          GRAY);
+
+// B top-right corner
+DrawModel(deskLegModel,
+          (Vector3){pos.x + 0.45f, pos.y + legH/2, pos.z + 1.05f},
+          1.0f,
+          GRAY);
+
+// C bottom-right corner
+DrawModel(deskLegModel,
+          (Vector3){pos.x + 1.05f, pos.y + legH/2, pos.z + 1.05f},
+          1.0f,
+          GRAY);
+
+}*/
+
 
 
 void DrawBox(Vector3 pos, Vector3 rotDeg, Vector3 size, Color tint)
@@ -67,6 +238,47 @@ void DrawBox(Vector3 pos, Vector3 rotDeg, Vector3 size, Color tint)
 
     rlPopMatrix();
 }
+
+// The computer
+void DrawComputer(Vector3 pos, float scale, float rotation)
+{
+    // --- SCREEN ---
+    Mesh screenMesh = GenMeshCube(0.40f, 0.30f, 0.02f);
+    Model screenModel = LoadModelFromMesh(screenMesh);
+    screenModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall; // placeholder
+
+    Mesh staticMesh = GenMeshCube(0.40f, 0.30f, 0.0f);
+    Model staticModel = LoadModelFromMesh(staticMesh);
+    staticModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texStatic;
+
+    // --- TRAPEZOID BACK ---
+    extern Model trapModel; // your trapezoid model
+
+    // --- STAND ---
+    Mesh standMesh = GenMeshCube(0.10f, 0.20f, 0.10f);
+    Model standModel = LoadModelFromMesh(standMesh);
+    standModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texMetal;
+
+    // --- DRAW ---
+    // --- ROTATED COMPUTER BODY ---
+    rlPushMatrix();
+        rlTranslatef(pos.x, pos.y, pos.z);
+        rlRotatef(rotation, 0, 1, 0);   // <--- ROTATION HERE
+        rlScalef(scale, scale, scale);
+
+        // Screen
+        DrawModel(screenModel, (Vector3){0, 0.25f, 0}, 1.0f, WHITE);
+        DrawModel(staticModel, (Vector3){0, 0.25f, 0.015f}, 1.0f, WHITE);
+
+        // Stand
+        DrawModel(standModel, (Vector3){0, 0.10f, 0}, 1.0f, WHITE);
+
+        // Trapezoid back (now rotates with the rest)
+        DrawModel(trapModel, (Vector3){0, 0.25f, -0.02f}, 0.75f, WHITE);
+
+    rlPopMatrix();
+}
+
 
 
 Vector3 ForwardFromCamera(Camera3D cam)
@@ -555,6 +767,90 @@ int main(void)
 // ------------------------------------------------------------
 // GENERATE PROCEDURAL TEXTURES
 // ------------------------------------------------------------
+// -----------------------------
+// BUILD DESK TOP TILES
+// -----------------------------
+Mesh A = GenMeshCube(0.75f, 0.2f, 0.75f);
+Mesh B = GenMeshCube(0.75f, 0.2f, 0.75f);
+Mesh C = GenMeshCube(0.75f, 0.2f, 0.75f);
+
+float raiseTop = 0.85f;
+
+for (int i = 0; i < A.vertexCount; i++)
+    A.vertices[i*3 + 1] += raiseTop;
+
+for (int i = 0; i < B.vertexCount; i++)
+    B.vertices[i*3 + 1] += raiseTop;
+
+for (int i = 0; i < C.vertexCount; i++)
+    C.vertices[i*3 + 1] += raiseTop;
+
+
+// Move B right by 0.75
+for (int i = 0; i < B.vertexCount; i++)
+    B.vertices[i*3 + 0] += 0.75f;
+
+// Move C right + down
+for (int i = 0; i < C.vertexCount; i++)
+{
+    C.vertices[i*3 + 0] += 0.75f;
+    C.vertices[i*3 + 2] += 0.75f;
+}
+
+// Merge tops
+Mesh deskMesh = MergeMeshes(A, B);
+deskMesh = MergeMeshes(deskMesh, C);
+
+// -----------------------------
+// BUILD LEGS
+// -----------------------------
+Mesh L1 = GenMeshCube(0.2f, 1.0f, 0.2f);
+Mesh L2 = GenMeshCube(0.2f, 1.0f, 0.2f);
+Mesh L3 = GenMeshCube(0.2f, 1.0f, 0.2f);
+Mesh L4 = GenMeshCube(0.2f, 1.0f, 0.2f);
+
+// Offsets (same as your DrawCornerDesk)
+float legH = 0.5f;
+
+for (int i = 0; i < L1.vertexCount; i++)
+{
+    L1.vertices[i*3 + 0] += -0.3f;
+    L1.vertices[i*3 + 1] += legH/2;
+    L1.vertices[i*3 + 2] += -0.3f;
+}
+
+for (int i = 0; i < L2.vertexCount; i++)
+{
+    L2.vertices[i*3 + 0] += -0.3f;
+    L2.vertices[i*3 + 1] += legH/2;
+    L2.vertices[i*3 + 2] +=  0.3f;
+}
+
+for (int i = 0; i < L3.vertexCount; i++)
+{
+    L3.vertices[i*3 + 0] += 0.45f;
+    L3.vertices[i*3 + 1] += legH/2;
+    L3.vertices[i*3 + 2] += 1.05f;
+}
+
+for (int i = 0; i < L4.vertexCount; i++)
+{
+    L4.vertices[i*3 + 0] += 1.05f;
+    L4.vertices[i*3 + 1] += legH/2;
+    L4.vertices[i*3 + 2] += 1.05f;
+}
+
+// Merge legs into desk
+deskMesh = MergeMeshes(deskMesh, L1);
+deskMesh = MergeMeshes(deskMesh, L2);
+deskMesh = MergeMeshes(deskMesh, L3);
+deskMesh = MergeMeshes(deskMesh, L4);
+
+// -----------------------------
+// LOAD FINAL DESK MODEL
+// -----------------------------
+deskModel = LoadModelFromMesh(deskMesh);
+deskModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){120, 70, 50, 255};
 
 //wall texture
 
@@ -564,6 +860,8 @@ texWall = LoadTexture("textures/TexWall.png");
 Texture2D TexWallUpHalf = LoadTexture("textures/TexWallUpHalf.png");
 Texture2D TexWallDownHalf = LoadTexture("textures/TexWalldownhalf.png");
 texDesk = LoadTexture("textures/TableTex.png");
+texComp = LoadTexture("textures/texComp.png");
+texStatic = LoadTexture("textures/Static.png");
 
 
 // Build the wall model using the same pattern as the legs
@@ -642,12 +940,12 @@ UnloadImage(fabricImg);
     Texture2D fogTex = LoadTextureFromImage(img);
     UnloadImage(img);
 
-// texwall
+    // texwall
     Mesh cubeMesh = GenMeshCube(1.0f, 1.0f, 1.0f);
     Model cubeModel = LoadModelFromMesh(cubeMesh);
     cubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
 
-// texwall up and down half
+    // texwall up and down half
     // TOP HALF MODEL
     Model cubeModelUp = LoadModelFromMesh(cubeMesh);
     cubeModelUp.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = TexWallUpHalf;
@@ -673,7 +971,17 @@ UnloadImage(fabricImg);
     deskLegModel = LoadModelFromMesh(deskLegMesh);
     deskLegModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texDesk;
 
+    // Computer monitor model
+    Mesh trapMesh = GenTrap(
+    0.5f,   // bottom width
+    0.35f,   // top width
+    0.05f,   // height
+    0.4f,   // bottom depth
+    0.2f    // top depth
+);
 
+    trapModel = LoadModelFromMesh(trapMesh);
+    trapModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texComp;
 
 
 
@@ -713,7 +1021,7 @@ UnloadImage(fabricImg);
         ClearBackground(RAYWHITE);ClearBackground((Color){10, 10, 12, 255});   // dead industrial gray
         BeginMode3D(cam);
         
-        float globalDim = 0.001f;   // 00.01% brightness
+        float globalDim = 0.35f;   // 00.01% brightness
         Color coldTint = { 180, 190, 220, 255 };  // bluish-gray
 
         
@@ -729,6 +1037,14 @@ UnloadImage(fabricImg);
         DrawGrid(10, 1.0f);
 
         DrawCabinetTest();
+        DrawComputer((Vector3){1.75f, 0.9f, 6.75f}, 1.0f, 0.0f);
+        DrawCornerDesk((Vector3){1.75f, 0.0f, 6.75f}, 180.0f);
+        DrawComputer((Vector3){-1.75f, 0.9f, 4.25f}, 1.0f, 0.0f);
+        DrawCornerDesk((Vector3){-1.75f, 0.0f, 4.25f}, 0.0f);
+        DrawComputer((Vector3){1.75f, 0.9f, 4.25f}, 1.0f, 0.0f);
+        DrawCornerDesk((Vector3){1.75f, 0.0f, 4.25f}, 0.0f);
+        DrawComputer((Vector3){-1.75f, 0.9f, 6.75f}, 1.0f, 0.0f);
+        DrawCornerDesk((Vector3){-1.75f, 0.0f, 6.75f}, 0.0f);
         DrawDesk();
         DrawBox((Vector3){0.0f, 0.25f, 0.0f}, (Vector3){0, 45, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKERGREEN);
         DrawBox((Vector3){0.0f, 0.25f, 0.6f}, (Vector3){0, 0, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKYELLOW);
