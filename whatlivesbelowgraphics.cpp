@@ -190,9 +190,40 @@ void DrawGenerator(void)
     0
         
 );
+        DrawTubeJointRotatable(
+    (Vector3){10.5, 0.19, -0.6},
+    0.19f,
+    0.5f,
+    180.0f,
+    (Vector3){0, 1, 0},   // rotate flat
+    270,
+    0,
+    0,
+    0,
+    -0.38f,
+    0.09f,    // rotate around z axis
+    0
+        
+);
+        DrawTubeJointRotatable(
+    (Vector3){9.67, 0.19, -0.6},
+    0.19f,
+    0.5f,
+    90.0f,
+    (Vector3){0, 1, 0},   // rotate flat
+    0,
+    0,
+    0,
+    0,
+    0.43f,
+    0.09f,    // rotate around z axis
+    0
+        );
+
 DrawCylinder((Vector3){9.67, 0.33, -0.6}, 0.25, 0.19, 0.5, 16, OTHERGRAY);
 DrawSphere((Vector3){10.5, 0.19, -0.6}, 0.19, GRAY);
 DrawSphere((Vector3){9.67, 0.19, -0.6}, 0.19, GRAY);
+DrawCube((Vector3){10, 0, -0.25}, 0.9, 1, 0.7, OTHERGRAY);
 }
 
 void DrawFloorOffice(float x, float z, float rot)
@@ -1343,7 +1374,7 @@ DrawSmoke3D();
 //}
 DrawGenerator();
 
-DrawCube((Vector3){10, 0, -0.25}, 0.9, 1, 0.7, OTHERGRAY);
+
 
         DrawDesk();
         DrawFloorOffice(0.0f, 2.5f, 0.0f);
