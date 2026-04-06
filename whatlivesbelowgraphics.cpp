@@ -97,7 +97,7 @@ void DrawSmoke3D()
     for (int i = 0; i < MAX_SMOKE; i++)
     {
         if (!smoke[i].active) continue;
-        
+
         Color c = { (unsigned char)(smoke[i].alpha * 1024), (unsigned char)(smoke[i].alpha * 1024), (unsigned char)(smoke[i].alpha * 1024), 255 };
         DrawSphere(smoke[i].pos, smoke[i].size, c);
     }
@@ -1343,7 +1343,7 @@ DrawSmoke3D();
 //}
 DrawGenerator();
 
-DrawCube((Vector3){10, 0, -0.25}, 0.8, 1, 0.7, WHITE);
+DrawCube((Vector3){10, 0, -0.25}, 0.9, 1, 0.7, OTHERGRAY);
 
         DrawDesk();
         DrawFloorOffice(0.0f, 2.5f, 0.0f);
