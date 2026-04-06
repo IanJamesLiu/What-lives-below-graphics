@@ -12,6 +12,7 @@ Color rustDark = { 107, 58, 30, 255 };
 Color DARKYELLOW = { 100, 90, 0, 255 };
 Color DARKERGREEN = { 0, 50, 0, 255 };
 Color metalDirty = { 58, 58, 63, 255 };
+Color blueprint = { 0, 255, 255, 128 };
 Color fogColor = { 18, 18, 20, 2 };   // pale dusty fog
 // Global textures (initialized in main)
 Texture2D texWall;
@@ -35,6 +36,84 @@ Model deskTopModel;
 Model deskLegModel;
 Model trapModel;
 Model deskModel;
+
+void DrawTubeJointRotatable(
+    Vector3 jointPos,
+    float radius,        // tube radius AND sphere radius
+    float tubeLength,
+    float angleDeg,
+    Vector3 axis,
+    float tubeBRot,     // NEW
+    float offsety1,
+    float offsety2,
+    float offsetx1,
+    float offsetx2,
+    float offsetz1,
+    float offsetz2
+)
+{
+    Color color = GRAY;
+    float half = tubeLength * 0.5f;
+
+    // Tube A: flat along -Z, touching the sphere
+    rlPushMatrix();
+        rlTranslatef(jointPos.x - offsetx1, jointPos.y - offsety1, jointPos.z - offsetz1);
+        rlRotatef(90, 1, 0, 0);                 // make cylinder lie flat (Y → Z)
+        DrawCylinder(
+            (Vector3){0, -half - radius, 0},    // center so it touches sphere
+            radius, radius, tubeLength,
+            16, color
+        );
+    rlPopMatrix();
+
+    // Joint sphere
+    DrawSphere(jointPos, radius, color);
+
+    // Tube B: rotatable, flat, touching the sphere
+    rlPushMatrix();
+        rlTranslatef(jointPos.x - offsetx2, jointPos.y - offsety2, jointPos.z - offsetz2);
+        rlRotatef(angleDeg, axis.x, axis.y, axis.z);
+        rlRotatef(90, 1, 0, 0);                 // make cylinder lie flat (Y → Z)
+        rlRotatef(tubeBRot, 0, 0, 1);                 // NEW: Tube B twist
+        DrawCylinder(
+            (Vector3){0, half + radius, 0},     // center so it touches sphere
+            radius, radius, tubeLength,
+            16, color
+        );
+    rlPopMatrix();
+}
+
+
+void DrawFloorOffice(float x, float z, float rot)
+{
+    rlPushMatrix();
+        rlTranslatef(x, 0.1f, z);
+        rlRotatef(rot, 0, 1, 0);
+        DrawCube((Vector3){x, 0.01f, z}, 4.0f, 0.1f, 1.0f, GRAY);
+    rlPopMatrix();
+}
+
+void DrawCustomGrid(int size, float spacing, Vector3 center, Color color)
+{
+    int half = size / 2;
+
+    for (int i = -half; i <= half; i++)
+    {
+        // Vertical lines (Z direction)
+        DrawLine3D(
+            (Vector3){ center.x + i * spacing, 0.0f, center.z - half * spacing },
+            (Vector3){ center.x + i * spacing, 0.0f, center.z + half * spacing },
+            color
+        );
+
+        // Horizontal lines (X direction)
+        DrawLine3D(
+            (Vector3){ center.x - half * spacing, 0.0f, center.z + i * spacing },
+            (Vector3){ center.x + half * spacing, 0.0f, center.z + i * spacing },
+            color
+        );
+    }
+}
 
 Mesh MergeMeshes(Mesh a, Mesh b)
 {
@@ -753,7 +832,67 @@ void DrawRoom3()
         WHITE
     );
 }
+// ------------------------------------------------------------
+// Draw Room 4
+// ------------------------------------------------------------
+void DrawRoom4()
+{
+   rlPushMatrix();
+    rlTranslatef(0, 0, 5.0f);
+    static Model wallCubeModel;
+{
+    Mesh cubeMesh = GenMeshCube(1.0f, 1.0f, 1.0f);   // unit cube
+    wallCubeModel = LoadModelFromMesh(cubeMesh);
+    wallCubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
+}
 
+
+    rlDisableBackfaceCulling();
+    DrawModel(wall, (Vector3){0, -0.01f, 0}, 1.0f, WHITE);
+    rlEnableBackfaceCulling();
+
+    DrawModelEx(
+    wallCubeModel,
+    (Vector3){0, 0.0f, 0},
+    (Vector3){1,0,0}, 00.0f,
+    (Vector3){4.0f, 0.1f, 4.0f},
+    WHITE
+    );
+
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){0, 1.25f, -2.0f},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){4.0f, 2.5f, 0.1f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){-2.0f, 1.25f, 0},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){0.1f, 2.5f, 4.0f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){2.0f, 1.25f, 0},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){0.1f, 2.5f, 4.0f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){0, 1.25f, 2.0f},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){4.0f, 2.5f, 0.1f},
+    WHITE);
+
+    DrawModelEx(wallCubeModel,
+    (Vector3){0, 2.5f, 0},
+    (Vector3){0,1,0}, 0.0f,
+    (Vector3){4.0f, 0.1f, 4.0f},
+    WHITE);
+   
+rlPopMatrix();
+
+}
 // ------------------------------------------------------------
 // MAIN PROGRAM
 // ------------------------------------------------------------
@@ -1034,18 +1173,96 @@ UnloadImage(fabricImg);
             1.0f
         );
 
-        DrawGrid(10, 1.0f);
+        //DrawGrid(100, 3.0f, 3.0f, fogColor);
+        DrawCustomGrid(100, 1.0f, (Vector3){3.0f, 0.0f, 3.0f}, SKYBLUE);
+
 
         DrawCabinetTest();
-        DrawComputer((Vector3){1.75f, 0.9f, 6.75f}, 1.0f, 0.0f);
-        DrawCornerDesk((Vector3){1.75f, 0.0f, 6.75f}, 180.0f);
-        DrawComputer((Vector3){-1.75f, 0.9f, 4.25f}, 1.0f, 0.0f);
-        DrawCornerDesk((Vector3){-1.75f, 0.0f, 4.25f}, 0.0f);
-        DrawComputer((Vector3){1.75f, 0.9f, 4.25f}, 1.0f, 0.0f);
-        DrawCornerDesk((Vector3){1.75f, 0.0f, 4.25f}, 0.0f);
-        DrawComputer((Vector3){-1.75f, 0.9f, 6.75f}, 1.0f, 0.0f);
-        DrawCornerDesk((Vector3){-1.75f, 0.0f, 6.75f}, 0.0f);
+
+        DrawComputer((Vector3){1.25f, 0.9f, 5.7f}, 1.0f, 0.0f);//fine
+        DrawCornerDesk((Vector3){0.85f, 0.0f, 6.55f}, 90.0f); //fine
+        rlPushMatrix();
+            rlTranslatef(1.7f, 0.0f, 6.55f);
+            rlRotatef(180.0f, 0, 1, 0);
+            rlScalef(1.5, 2.0, 1.5);
+            DrawCafeChair();
+        rlPopMatrix();
+
+
+
+        DrawComputer((Vector3){-1.25f, 0.9f, 4.25f}, 1.0f, 180.0f);
+        DrawCornerDesk((Vector3){-0.85f, 0.0f, 3.4f}, 270.0f); //fine
+        rlPushMatrix();
+            rlTranslatef(1.7f, 0.0f, 3.55f);
+            rlRotatef(0.0f, 0, 1, 0);
+            rlScalef(1.5, 2.0, 1.5);
+            DrawCafeChair();
+        rlPopMatrix();
+        
+        DrawComputer((Vector3){1.25f, 0.9f, 4.25f}, 1.0f, 180.0f);
+        DrawCornerDesk((Vector3){1.6f, 0.0f, 4.15f}, 180.0f); //fine
+        rlPushMatrix();
+            rlTranslatef(-1.7f, 0.0f, 3.55f);
+            rlRotatef(0.0f, 0, 1, 0);
+            rlScalef(1.5, 2.0, 1.5);
+            DrawCafeChair();
+        rlPopMatrix();
+        
+        
+        DrawComputer((Vector3){-1.25f, 0.9f, 5.7f}, 1.0f, 0.0f); //fine
+        DrawCornerDesk((Vector3){-1.55f, 0.0f, 5.85f}, 0.0f); //fine
+        rlPushMatrix();
+            rlTranslatef(-1.7f, 0.0f, 6.55f);
+            rlRotatef(180.0f, 0, 1, 0);
+            rlScalef(1.5, 2.0, 1.5);
+            DrawCafeChair();
+        rlPopMatrix();
+
+    if (IsKeyPressed(KEY_SPACE))
+    {    
+        DrawTubeJointRotatable(
+    (Vector3){9.67, 0, 0},
+    0.19f,
+    0.5f,
+    90.0f,
+    (Vector3){0, 1, 0},   // rotate flat
+    0,
+    0,
+    0,
+    0,
+    0.43f,
+    0.09f,    // rotate around z axis
+    0
+        );
+        DrawTubeJointRotatable(
+    (Vector3){10.5, 0, 0},
+    0.19f,
+    0.5f,
+    180.0f,
+    (Vector3){0, 1, 0},   // rotate flat
+    270,
+    0,
+    0,
+    0,
+    -0.38f,
+    0.09f,    // rotate around z axis
+    0
+        
+);
+DrawSphere((Vector3){10.5, 0, -0.6}, 0.19, GRAY);
+    }
+DrawCube(
+    (Vector3){10.05, 0.01f, -0.65},   // center
+    1.0f,                  // width
+    2.0f,                  // height
+    1.5f,                  // length
+    blueprint
+); //temporary cube
+
+
         DrawDesk();
+        DrawFloorOffice(0.0f, 2.5f, 0.0f);
+        DrawFloorOffice(-2.5f, 2.5f, 90.0f);
         DrawBox((Vector3){0.0f, 0.25f, 0.0f}, (Vector3){0, 45, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKERGREEN);
         DrawBox((Vector3){0.0f, 0.25f, 0.6f}, (Vector3){0, 0, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKYELLOW);
         DrawBox((Vector3){0.0f, 0.75f, 0.0f}, (Vector3){0, 30, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKERGREEN);
@@ -1081,6 +1298,7 @@ UnloadImage(fabricImg);
         DrawRoom();
         DrawRoom2();
         DrawRoom3();
+        DrawRoom4();
         DrawCentralBlock(DARKGRAY, GRAY, wallcolor, cubeModel, cubeModelUp, cubeModelDown);
 
         // -------------------------------
