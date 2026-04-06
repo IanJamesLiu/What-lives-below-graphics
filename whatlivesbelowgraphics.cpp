@@ -11,8 +11,9 @@ Color rustLight = { 160, 90, 44, 255 };
 Color rustDark = { 107, 58, 30, 255 };
 Color DARKYELLOW = { 100, 90, 0, 255 };
 Color DARKERGREEN = { 0, 50, 0, 255 };
+Color OTHERGRAY = { 110, 110, 110, 255 };
 Color metalDirty = { 58, 58, 63, 255 };
-Color blueprint = { 0, 255, 255, 128 };
+Color blueprint = { 0, 255, 255, 12 };
 Color fogColor = { 18, 18, 20, 2 };   // pale dusty fog
 // Global textures (initialized in main)
 Texture2D texWall;
@@ -26,6 +27,7 @@ Texture2D texDesk;
 Texture2D texComp;
 Texture2D texStatic;
 
+bool GeneratorActive = false;
 
 float fogRadius = 20.0f;                  // how far the fog extends
 Model wall;
@@ -36,6 +38,70 @@ Model deskTopModel;
 Model deskLegModel;
 Model trapModel;
 Model deskModel;
+
+
+
+
+
+
+struct SmokeParticle {
+    Vector3 pos;
+    float size;
+    float alpha;
+    float riseSpeed;
+    float growSpeed;
+    bool active;
+};
+
+const int MAX_SMOKE = 64;
+SmokeParticle smoke[MAX_SMOKE];
+
+void SpawnSmoke(Vector3 pos)
+{
+    for (int i = 0; i < MAX_SMOKE; i++)
+    {
+        if (!smoke[i].active)
+        {
+            smoke[i].active = true;
+            smoke[i].pos = pos;
+            smoke[i].size = 0.1f;
+            smoke[i].alpha = 1.0f;
+            smoke[i].riseSpeed = 0.4f + (float)(rand()%100)/300.0f; // random rise
+            smoke[i].growSpeed = 0.3f;
+            return;
+        }
+    }
+}
+
+void UpdateSmoke(float dt)
+{
+    for (int i = 0; i < MAX_SMOKE; i++)
+    {
+        if (!smoke[i].active) continue;
+
+        smoke[i].pos.y += smoke[i].riseSpeed * dt;
+        smoke[i].size += smoke[i].growSpeed * dt;
+        smoke[i].alpha -= dt * 0.4f;
+                //🌬 🌬 🌬 🌬 🌬 🌬 🌬 🌬 🌬 🌬 🌬 🌬 🌬
+        smoke[i].pos.x += ((rand() % 100) / 500000.0f - 0.01f);
+        smoke[i].pos.z += ((rand() % 100) / 500000.0f - 0.01f);
+
+
+        if (smoke[i].alpha <= 0.0f)
+            smoke[i].active = false;
+    }
+}
+
+void DrawSmoke3D()
+{
+    for (int i = 0; i < MAX_SMOKE; i++)
+    {
+        if (!smoke[i].active) continue;
+        
+        Color c = { (unsigned char)(smoke[i].alpha * 1024), (unsigned char)(smoke[i].alpha * 1024), (unsigned char)(smoke[i].alpha * 1024), 255 };
+        DrawSphere(smoke[i].pos, smoke[i].size, c);
+    }
+}
 
 void DrawTubeJointRotatable(
     Vector3 jointPos,
@@ -83,6 +149,51 @@ void DrawTubeJointRotatable(
     rlPopMatrix();
 }
 
+void DrawSmokeSphere(Vector3 pos, float radius, float alpha)
+{
+    Color c = { 180, 180, 190, (unsigned char)(alpha * 255) };
+    DrawSphere(pos, radius, c);
+}
+
+
+
+void DrawGenerator(void)
+{
+    SpawnSmoke((Vector3){9.67, 1, -0.6f});
+    SpawnSmoke((Vector3){9.67f, 0.9f, -0.6f});
+    DrawTubeJointRotatable(
+    (Vector3){9.67, 0.19, 0},
+    0.19f,
+    0.5f,
+    90.0f,
+    (Vector3){0, 1, 0},   // rotate flat
+    0,
+    0,
+    0,
+    0,
+    0.43f,
+    0.09f,    // rotate around z axis
+    0
+        );
+        DrawTubeJointRotatable(
+    (Vector3){10.5, 0.19, 0},
+    0.19f,
+    0.5f,
+    180.0f,
+    (Vector3){0, 1, 0},   // rotate flat
+    270,
+    0,
+    0,
+    0,
+    -0.38f,
+    0.09f,    // rotate around z axis
+    0
+        
+);
+DrawCylinder((Vector3){9.67, 0.33, -0.6}, 0.25, 0.19, 0.5, 16, OTHERGRAY);
+DrawSphere((Vector3){10.5, 0.19, -0.6}, 0.19, GRAY);
+DrawSphere((Vector3){9.67, 0.19, -0.6}, 0.19, GRAY);
+}
 
 void DrawFloorOffice(float x, float z, float rot)
 {
@@ -906,6 +1017,8 @@ int main(void)
 // ------------------------------------------------------------
 // GENERATE PROCEDURAL TEXTURES
 // ------------------------------------------------------------
+//early load textures so we can use them in our procedural materials
+texDesk = LoadTexture("textures/TableTex.png");
 // -----------------------------
 // BUILD DESK TOP TILES
 // -----------------------------
@@ -989,6 +1102,7 @@ deskMesh = MergeMeshes(deskMesh, L4);
 // LOAD FINAL DESK MODEL
 // -----------------------------
 deskModel = LoadModelFromMesh(deskMesh);
+deskModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texDesk;
 deskModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){120, 70, 50, 255};
 
 //wall texture
@@ -998,7 +1112,6 @@ TexTableNoise = LoadTexture("textures/TableTop.png");
 texWall = LoadTexture("textures/TexWall.png");
 Texture2D TexWallUpHalf = LoadTexture("textures/TexWallUpHalf.png");
 Texture2D TexWallDownHalf = LoadTexture("textures/TexWalldownhalf.png");
-texDesk = LoadTexture("textures/TableTex.png");
 texComp = LoadTexture("textures/texComp.png");
 texStatic = LoadTexture("textures/Static.png");
 
@@ -1218,47 +1331,19 @@ UnloadImage(fabricImg);
             DrawCafeChair();
         rlPopMatrix();
 
-    if (IsKeyPressed(KEY_SPACE))
-    {    
-        DrawTubeJointRotatable(
-    (Vector3){9.67, 0, 0},
-    0.19f,
-    0.5f,
-    90.0f,
-    (Vector3){0, 1, 0},   // rotate flat
-    0,
-    0,
-    0,
-    0,
-    0.43f,
-    0.09f,    // rotate around z axis
-    0
-        );
-        DrawTubeJointRotatable(
-    (Vector3){10.5, 0, 0},
-    0.19f,
-    0.5f,
-    180.0f,
-    (Vector3){0, 1, 0},   // rotate flat
-    270,
-    0,
-    0,
-    0,
-    -0.38f,
-    0.09f,    // rotate around z axis
-    0
-        
-);
-DrawSphere((Vector3){10.5, 0, -0.6}, 0.19, GRAY);
-    }
-DrawCube(
-    (Vector3){10.05, 0.01f, -0.65},   // center
-    1.0f,                  // width
-    2.0f,                  // height
-    1.5f,                  // length
-    blueprint
-); //temporary cube
 
+if (GetRandomValue(0, 10) == 0)
+{
+    SpawnSmoke((Vector3){2,  1 + 1.0f, 2});
+    }
+UpdateSmoke(GetFrameTime());
+//if (GeneratorActive)   
+//{  
+DrawSmoke3D();
+//}
+DrawGenerator();
+
+DrawCube((Vector3){10, 0, -0.25}, 0.8, 1, 0.7, WHITE);
 
         DrawDesk();
         DrawFloorOffice(0.0f, 2.5f, 0.0f);
@@ -1362,6 +1447,9 @@ DrawBillboard(cam, fogTex, fogPos, fogSize, fogColor);
 rlSetBlendMode(RL_BLEND_ALPHA);
 
 
+
+
+ 
 
 
 
