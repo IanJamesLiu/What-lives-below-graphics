@@ -12,6 +12,8 @@ Color rustDark = { 107, 58, 30, 255 };
 Color DARKYELLOW = { 100, 90, 0, 255 };
 Color DARKERGREEN = { 0, 50, 0, 255 };
 Color OTHERGRAY = { 110, 110, 110, 255 };
+Color OTHERERGRAY = { 90, 90, 90, 255 };
+Color MOREGRAY = { 130, 130, 130, 255 };
 Color metalDirty = { 58, 58, 63, 255 };
 Color blueprint = { 0, 255, 255, 12 };
 Color fogColor = { 18, 18, 20, 2 };   // pale dusty fog
@@ -26,6 +28,7 @@ Texture2D texCabinet;
 Texture2D texDesk;
 Texture2D texComp;
 Texture2D texStatic;
+Texture2D pullstartTex;
 
 bool GeneratorActive = false;
 
@@ -38,6 +41,7 @@ Model deskTopModel;
 Model deskLegModel;
 Model trapModel;
 Model deskModel;
+Model pullstartModel;
 
 
 
@@ -133,7 +137,7 @@ void DrawTubeJointRotatable(
     rlPopMatrix();
 
     // Joint sphere
-    DrawSphere(jointPos, radius, color);
+    DrawSphere(jointPos, radius, OTHERERGRAY);
 
     // Tube B: rotatable, flat, touching the sphere
     rlPushMatrix();
@@ -156,11 +160,86 @@ void DrawSmokeSphere(Vector3 pos, float radius, float alpha)
 }
 
 
+void DrawRecoilStarter(Vector3 pos, float scale, Color housingColor, Color handleColor)
+{
+    // -----------------------------
+    //preparattion
+    // -----------------------------
+
+    pullstartTex = LoadTexture("textures/pullstart.png");
+
+    Mesh m = GenMeshCylinder(0.45f, 0.12f, 32);
+    pullstartModel = LoadModelFromMesh(m);
+    pullstartModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = pullstartTex;
+
+    // -----------------------------
+    // MAIN ROUND HOUSING
+    // -----------------------------
+    float radius = 0.45f * scale;
+    float thickness = 0.12f * scale;
+
+    rlPushMatrix();
+    rlTranslatef(pos.x, pos.y, pos.z);
+    DrawModel(pullstartModel, (Vector3){0,0,0}, scale, WHITE);
+    rlPopMatrix();
+
+
+    // -----------------------------
+    // CENTER HUB
+    // -----------------------------
+    Vector3 hubPos = pos;
+    hubPos.z += thickness * 0.55f;
+
+    DrawCylinder(hubPos, radius * 0.25f, radius * 0.25f, thickness * 0.3f, 16, DARKGRAY);
+
+    // -----------------------------
+    // VENT BLADES (fake slots)
+    // -----------------------------
+    for (int i = 0; i < 12; i++)
+    {
+        rlPushMatrix();
+        rlTranslatef(pos.x, pos.y + thickness, pos.z + thickness * 0.6f);
+        rlRotatef(90, 1, 0, 0); // tilt vents forward
+        rlRotatef(i * (360.0f / 12.0f), 0, 0, 1);
+
+        DrawCube((Vector3){radius * 0.55f, 0, 0}, 
+                 radius * 0.25f, 
+                 radius * 0.05f, 
+                 thickness * 0.1f, 
+                 BLACK);
+
+        rlPopMatrix();
+    }
+
+    // -----------------------------
+    // PULL CORD
+    // -----------------------------
+    Vector3 cordStart = pos;
+    cordStart.x += radius * 0.9f;
+    cordStart.z += thickness * 0.2f;
+
+    Vector3 cordEnd = cordStart;
+    cordEnd.x += 0.4f * scale;
+
+    DrawCylinderEx(cordStart, cordEnd, 0.03f * scale, 0.03f * scale, 8, BLACK);
+    
+    // -----------------------------
+    // HANDLE
+    // -----------------------------
+    Vector3 handlePos = cordEnd;
+    handlePos.x += 0.14f * scale;
+    DrawCube(handlePos, 
+             0.25f * scale, 
+             0.12f * scale, 
+             0.12f * scale, 
+             handleColor);
+}
 
 void DrawGenerator(void)
 {
     SpawnSmoke((Vector3){9.67, 1, -0.6f});
     SpawnSmoke((Vector3){9.67f, 0.9f, -0.6f});
+    SpawnSmoke((Vector3){9.67f, 0.8f, -0.6f});
     DrawTubeJointRotatable(
     (Vector3){9.67, 0.19, 0},
     0.19f,
@@ -190,8 +269,12 @@ void DrawGenerator(void)
     0
         
 );
+    rlPushMatrix();
+    rlTranslatef(10.5, 0.78, -0.6);
+    rlRotatef(90, 0, 0, 1);
+    rlRotatef(90, 1, 0, 0);
         DrawTubeJointRotatable(
-    (Vector3){10.5, 0.19, -0.6},
+    (Vector3){0, 0, 0},
     0.19f,
     0.5f,
     180.0f,
@@ -205,6 +288,29 @@ void DrawGenerator(void)
     0
         
 );
+rlPopMatrix();
+    rlPushMatrix();
+    rlTranslatef(10, 0.78, 0.0);
+    rlRotatef(90, 0, 0, 1);
+    rlRotatef(180, 1, 0, 0);
+    rlRotatef(180, 1, 0, 0);
+        DrawTubeJointRotatable(
+    (Vector3){0, 0, 0},
+    0.19f,
+    0.5f,
+    180.0f,
+    (Vector3){0, 1, 0},   // rotate flat
+    270,
+    0,
+    0,
+    0,
+    -0.38f,
+    0.09f,    // rotate around z axis
+    0
+    );
+
+rlPopMatrix();
+
         DrawTubeJointRotatable(
     (Vector3){9.67, 0.19, -0.6},
     0.19f,
@@ -219,12 +325,20 @@ void DrawGenerator(void)
     0.09f,    // rotate around z axis
     0
         );
+rlPushMatrix();
+rlTranslatef(10, 0.5, -1.35);
+rlRotatef(90, 1, 0, 0);
+rlRotatef(180, 0, 1, 0);
+rlRotatef(180, 1, 0, 0);
+        DrawRecoilStarter((Vector3){0, 0, 0}, 0.5f, GRAY, RED);
+rlPopMatrix();
 
-DrawCylinder((Vector3){9.67, 0.33, -0.6}, 0.25, 0.19, 0.5, 16, OTHERGRAY);
+DrawCylinder((Vector3){9.67, 0.33, -0.6}, 0.25, 0.19, 0.5, 16, DARKGRAY);
 DrawSphere((Vector3){10.5, 0.19, -0.6}, 0.19, GRAY);
 DrawSphere((Vector3){9.67, 0.19, -0.6}, 0.19, GRAY);
-DrawCube((Vector3){10, 0, -0.25}, 0.9, 1, 0.7, OTHERGRAY);
+DrawCube((Vector3){10, 0, -0.65}, 0.9, 1.5, 1.4, OTHERGRAY);
 }
+
 
 void DrawFloorOffice(float x, float z, float rot)
 {
@@ -1301,7 +1415,7 @@ UnloadImage(fabricImg);
     );*/
 
         BeginDrawing();
-        ClearBackground(RAYWHITE);ClearBackground((Color){10, 10, 12, 255});   // dead industrial gray
+        ClearBackground(RAYWHITE);
         BeginMode3D(cam);
         
         float globalDim = 0.35f;   // 00.01% brightness
@@ -1319,6 +1433,7 @@ UnloadImage(fabricImg);
 
         //DrawGrid(100, 3.0f, 3.0f, fogColor);
         DrawCustomGrid(100, 1.0f, (Vector3){3.0f, 0.0f, 3.0f}, SKYBLUE);
+
 
 
         DrawCabinetTest();
