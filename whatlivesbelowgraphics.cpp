@@ -29,6 +29,7 @@ Texture2D texDesk;
 Texture2D texComp;
 Texture2D texStatic;
 Texture2D pullstartTex;
+Texture2D ivStandTex;
 
 bool GeneratorActive = false;
 
@@ -42,6 +43,7 @@ Model deskLegModel;
 Model trapModel;
 Model deskModel;
 Model pullstartModel;
+
 
 
 
@@ -74,6 +76,10 @@ void SpawnSmoke(Vector3 pos)
             smoke[i].growSpeed = 0.3f;
             return;
         }
+        // Prevent smoke from ever spawning at the origin
+if (pos.x == 0 && pos.y == 0 && pos.z == 0)
+    return;
+
     }
 }
 
@@ -94,6 +100,7 @@ void UpdateSmoke(float dt)
         if (smoke[i].alpha <= 0.0f)
             smoke[i].active = false;
     }
+    
 }
 
 void DrawSmoke3D()
@@ -106,6 +113,128 @@ void DrawSmoke3D()
         DrawSphere(smoke[i].pos, smoke[i].size, c);
     }
 }
+
+void DrawIVStand(Vector3 pos)
+{
+    // -----------------------------
+    // PREPARATION
+    // -----------------------------
+    Image img = LoadImage("textures/biohazard.png");
+    ivStandTex = LoadTextureFromImage(img);
+    UnloadImage(img); // we only needed the flipped image for the texture, can free now
+
+    
+    Mesh cubeMesh = GenMeshCube(0.125f, 0.125f, 0.0f);
+    Model cubeModel = LoadModelFromMesh(cubeMesh);
+    cubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = ivStandTex;
+
+    // -----------------------------
+    // DIMENSIONS
+    // -----------------------------
+    float poleH = 1.6f;
+    float poleR = 0.03f;
+
+    float baseH = 0.05f;
+    float baseR = 0.25f;
+
+    float hookLen = 0.18f;
+    float hookThick = 0.03f;
+
+    // Bag
+    float bagW = 0.20f;
+    float bagH = 0.30f;
+    float bagD = 0.08f;
+
+    // -----------------------------
+    // BASE
+    // -----------------------------
+    DrawCylinder(
+        (Vector3){pos.x, pos.y + baseH/2.0f, pos.z},
+        baseR, baseR, baseH,
+        16,
+        OTHERGRAY
+    );
+
+    // -----------------------------
+    // POLE 2
+    // -----------------------------
+    rlPushMatrix();
+    rlTranslatef(pos.x - 0.02f, pos.y + baseH + poleH/100.0f + 0.5f, pos.z - 0.05f);
+    rlRotatef(3, 1, 0, 0); // rotate so it stands up
+    DrawCylinder(
+        (Vector3){0, 0, 0},
+        poleR, poleR, poleH - 0.95f,
+        16,
+        OTHERGRAY
+    );
+    rlPopMatrix();
+    // ------------------------------
+    // pole
+    // ------------------------------
+    DrawCylinder(
+        (Vector3){pos.x - 0.2f, pos.y + baseH + poleH/100.0f, pos.z - 0.05f},
+        poleR, poleR, poleH,
+        16,
+        MOREGRAY
+    );
+    // -----------------------------
+    // pole 3
+    // -----------------------------
+    rlPushMatrix();
+    rlTranslatef(pos.x - 0.02f, pos.y + baseH + poleH/100.0f + 1.5f - poleH, pos.z - 0.08f);
+    rlRotatef(3, 1, 0, 0); // rotate so it stands up
+    DrawCylinder(
+        (Vector3){0, 0, 0},
+        poleR, poleR, poleH - 1.95f,
+        16,
+        OTHERGRAY
+    );
+    rlPopMatrix();
+    // -----------------------------
+    // HOOKS
+    // -----------------------------
+    float hookY = pos.y + baseH + poleH - 0.1f;
+
+    // Left hook
+    DrawCube(
+        (Vector3){pos.x - hookLen/2.0f, hookY, pos.z},
+        hookLen,
+        hookThick,
+        hookThick,
+        MOREGRAY
+    );
+
+    // Right hook
+    DrawCube(
+        (Vector3){pos.x + hookLen/2.0f, hookY, pos.z},
+        hookLen,
+        hookThick,
+        hookThick,
+        MOREGRAY
+    );
+
+    // -----------------------------
+    // SQUARE BAG (stylized)
+    // -----------------------------
+    rlPushMatrix();
+    rlTranslatef(pos.x - bagW/2.0f, hookY - bagH/2.0f - 0.045f, pos.z + 0.05f);
+    rlRotatef(180, 1, 0, 0); // rotate so front faces forward
+    DrawModel(cubeModel, (Vector3){0, 0, 0}, 1.0f, WHITE);
+    rlPopMatrix();
+
+    DrawCube(
+        (Vector3){
+            pos.x - hookLen/2.0f,   // hangs from left hook
+            hookY - bagH/2.0f - 0.05f,
+            pos.z
+        },
+        bagW,
+        bagH,
+        bagD,
+        (Color){200, 60, 60, 255}   // soft red, cartoony
+    );
+}
+
 
 void DrawTubeJointRotatable(
     Vector3 jointPos,
@@ -338,6 +467,119 @@ DrawSphere((Vector3){10.5, 0.19, -0.6}, 0.19, GRAY);
 DrawSphere((Vector3){9.67, 0.19, -0.6}, 0.19, GRAY);
 DrawCube((Vector3){10, 0, -0.65}, 0.9, 1.5, 1.4, OTHERGRAY);
 }
+
+void DrawMedWingBed(Vector3 pos)
+{
+    // -----------------------------
+    // DIMENSIONS
+    // -----------------------------
+    float legH      = 0.30f;
+    float legR      = 0.05f;
+
+    float frameW    = 1.9f;
+    float frameH    = 0.10f;
+    float frameD    = 0.75f;
+
+    float mattressH = 0.20f;
+
+    float headH     = 0.45f;
+    float headT     = 0.06f;
+
+    // Y positions
+    float yLegCenter       = pos.y + legH/2.0f;
+    float yFrameCenter     = pos.y + legH + frameH/2.0f;
+    float yMattressCenter  = yFrameCenter + frameH/2.0f + mattressH/2.0f;
+
+    // -----------------------------
+    // LEGS
+    // -----------------------------
+    float lx = frameW/2 - 0.15f;
+    float lz = frameD/2 - 0.15f;
+
+    Vector3 legs[4] = {
+        { pos.x + lx, yLegCenter, pos.z + lz },
+        { pos.x - lx, yLegCenter, pos.z + lz },
+        { pos.x + lx, yLegCenter, pos.z - lz },
+        { pos.x - lx, yLegCenter, pos.z - lz }
+    };
+
+    for (int i = 0; i < 4; i++)
+        DrawCylinder(legs[i], legR, legR, legH, 16, OTHERERGRAY);
+
+    // -----------------------------
+    // FRAME
+    // -----------------------------
+    DrawCube(
+        (Vector3){pos.x, yFrameCenter, pos.z},
+        frameW, frameH, frameD,
+        OTHERGRAY
+    );
+
+    // -----------------------------
+    // MATTRESS
+    // -----------------------------
+    DrawCube(
+        (Vector3){pos.x, yMattressCenter, pos.z},
+        frameW * 0.95f,
+        mattressH,
+        frameD * 0.95f,
+        (Color){200, 220, 230, 255}
+    );
+
+    // -----------------------------
+    // HEADBOARD
+    // -----------------------------
+    DrawCube(
+        (Vector3){
+            pos.x - frameW/2 + headT/2,
+            yFrameCenter + frameH/2.0f + headH/2.0f,
+            pos.z
+        },
+        headT,
+        headH,
+        frameD,
+        MOREGRAY
+    );
+
+    // -----------------------------
+    // PILLOW
+    // -----------------------------
+    float pillowW = frameW * 0.40f;
+    float pillowD = frameD * 0.55f;
+    float pillowH = 0.1f;
+
+    DrawCube(
+        (Vector3){
+            pos.x - frameW*0.35f,
+            yMattressCenter + mattressH/2.0f + pillowH/2.0f,
+            pos.z
+        },
+        pillowD,
+        pillowH,
+        pillowW,
+        (Color){235, 240, 245, 255}
+    );
+
+    // -----------------------------
+    // BLANKET
+    // -----------------------------
+    float blanketW = frameW * 0.92f;
+    float blanketD = frameD * 0.95f;   // shorter so pillow shows
+    float blanketH = 0.06f;
+
+    DrawCube(
+        (Vector3){
+            pos.x + 0.05f,   // tiny shift so it looks tucked
+            yMattressCenter + mattressH/2.0f + blanketH/2.0f,
+            pos.z
+        },
+        blanketW,
+        blanketH,
+        blanketD,
+        (Color){180, 200, 210, 255}   // soft medical blue‑gray
+    );
+}
+
 
 
 void DrawFloorOffice(float x, float z, float rot)
@@ -1468,6 +1710,7 @@ UnloadImage(fabricImg);
         rlPopMatrix();
         
         
+        
         DrawComputer((Vector3){-1.25f, 0.9f, 5.7f}, 1.0f, 0.0f); //fine
         DrawCornerDesk((Vector3){-1.55f, 0.0f, 5.85f}, 0.0f); //fine
         rlPushMatrix();
@@ -1486,10 +1729,12 @@ UpdateSmoke(GetFrameTime());
 //if (GeneratorActive)   
 //{  
 DrawSmoke3D();
+//continue;
 //}
 DrawGenerator();
 
-
+DrawMedWingBed((Vector3){6.0f, 0.0f, 6.5f});
+DrawIVStand((Vector3){5.0f, 0.0f, 6.0f});
 
         DrawDesk();
         DrawFloorOffice(0.0f, 2.5f, 0.0f);
@@ -1528,6 +1773,10 @@ DrawGenerator();
 
         DrawRoom();
         DrawRoom2();
+        rlPushMatrix();
+            rlTranslatef(5, 0, 0.0f);
+            DrawRoom2();
+        rlPopMatrix();
         DrawRoom3();
         DrawRoom4();
         DrawCentralBlock(DARKGRAY, GRAY, wallcolor, cubeModel, cubeModelUp, cubeModelDown);
