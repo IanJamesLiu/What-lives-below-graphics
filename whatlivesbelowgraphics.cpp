@@ -32,6 +32,7 @@ Texture2D pullstartTex;
 Texture2D ivStandTex;
 
 bool GeneratorActive = false;
+float dripEndY = 0.1f;   // example height
 
 float fogRadius = 20.0f;                  // how far the fog extends
 Model wall;
@@ -49,6 +50,12 @@ Model pullstartModel;
 
 
 
+struct Drip {
+    Vector3 pos;
+    float speed;
+    float alpha;
+    bool active;
+};
 
 struct SmokeParticle {
     Vector3 pos;
@@ -58,6 +65,45 @@ struct SmokeParticle {
     float growSpeed;
     bool active;
 };
+
+
+const int MAX_DRIPS = 32;
+Drip drips[MAX_DRIPS];
+
+void SpawnDrip(Vector3 start) {
+    for (int i = 0; i < MAX_DRIPS; i++) {
+        if (!drips[i].active) {
+            drips[i].active = true;
+            drips[i].pos = start;
+            drips[i].speed = 0.6f;   // slow, eerie fall
+            drips[i].alpha = 1.0f;
+            return;
+        }
+    }
+}
+
+void UpdateDrips(float dt) {
+    for (int i = 0; i < MAX_DRIPS; i++) {
+        if (!drips[i].active) continue;
+
+        drips[i].pos.y -= drips[i].speed * dt;  // falling
+        drips[i].alpha -= dt * 0.5f;            // fade a bit
+
+        if (drips[i].pos.y <= dripEndY || drips[i].alpha <= 0.0f)
+            drips[i].active = false;
+    }
+}
+
+void DrawDrips() {
+    for (int i = 0; i < MAX_DRIPS; i++) {
+        if (!drips[i].active) continue;
+
+        Color c = {200, 50, 50, (unsigned char)(drips[i].alpha * 255)};
+        DrawSphere(drips[i].pos, 0.03f, c);
+    }
+}
+
+
 
 const int MAX_SMOKE = 64;
 SmokeParticle smoke[MAX_SMOKE];
@@ -117,6 +163,11 @@ void DrawSmoke3D()
 void DrawIVStand(Vector3 pos)
 {
     // -----------------------------
+    // Drips (spawned here so they fall from the stand)
+    // -----------------------------
+    SpawnDrip((Vector3){pos.x - 0.02f, pos.y + 0.5f, pos.z - 0.05f});
+    DrawCylinder((Vector3){pos.x - 0.02f, pos.y + 0.09f, pos.z - 0.05f}, 0.125, 0.125, 0.01f, 16, (Color){200, 50, 50, 255});
+    // -----------------------------
     // PREPARATION
     // -----------------------------
     Image img = LoadImage("textures/biohazard.png");
@@ -159,7 +210,7 @@ void DrawIVStand(Vector3 pos)
     // POLE 2
     // -----------------------------
     rlPushMatrix();
-    rlTranslatef(pos.x - 0.02f, pos.y + baseH + poleH/100.0f + 0.5f, pos.z - 0.05f);
+    rlTranslatef(pos.x - 0.02f, pos.y + baseH + poleH/100.0f + 0.6f, pos.z - 0.05f);
     rlRotatef(3, 1, 0, 0); // rotate so it stands up
     DrawCylinder(
         (Vector3){0, 0, 0},
@@ -181,11 +232,11 @@ void DrawIVStand(Vector3 pos)
     // pole 3
     // -----------------------------
     rlPushMatrix();
-    rlTranslatef(pos.x - 0.02f, pos.y + baseH + poleH/100.0f + 1.5f - poleH, pos.z - 0.08f);
+    rlTranslatef(pos.x - 0.02f, pos.y + baseH + poleH/100.0f + 2.25f - poleH + 0.18, pos.z - 0.0502f);
     rlRotatef(3, 1, 0, 0); // rotate so it stands up
     DrawCylinder(
-        (Vector3){0, 0, 0},
-        poleR, poleR, poleH - 1.95f,
+        (Vector3){0, -0.18f, 0.02f},
+        poleR*0, poleR, poleH - 1.95f,
         16,
         OTHERGRAY
     );
@@ -197,7 +248,7 @@ void DrawIVStand(Vector3 pos)
 
     // Left hook
     DrawCube(
-        (Vector3){pos.x - hookLen/2.0f, hookY, pos.z},
+        (Vector3){pos.x - hookLen/2.0f, hookY, pos.z - 0.08f},
         hookLen,
         hookThick,
         hookThick,
@@ -206,7 +257,7 @@ void DrawIVStand(Vector3 pos)
 
     // Right hook
     DrawCube(
-        (Vector3){pos.x + hookLen/2.0f, hookY, pos.z},
+        (Vector3){pos.x + hookLen/2.0f, hookY, pos.z - 0.08f},
         hookLen,
         hookThick,
         hookThick,
@@ -217,7 +268,7 @@ void DrawIVStand(Vector3 pos)
     // SQUARE BAG (stylized)
     // -----------------------------
     rlPushMatrix();
-    rlTranslatef(pos.x - bagW/2.0f, hookY - bagH/2.0f - 0.045f, pos.z + 0.05f);
+    rlTranslatef(pos.x - bagW/2.0f, hookY - bagH/2.0f - 0.045f, pos.z + 0.08f - 0.13f);
     rlRotatef(180, 1, 0, 0); // rotate so front faces forward
     DrawModel(cubeModel, (Vector3){0, 0, 0}, 1.0f, WHITE);
     rlPopMatrix();
@@ -225,7 +276,7 @@ void DrawIVStand(Vector3 pos)
     DrawCube(
         (Vector3){
             pos.x - hookLen/2.0f,   // hangs from left hook
-            hookY - bagH/2.0f - 0.05f,
+            hookY - bagH/2.0f + 0.013f,
             pos.z
         },
         bagW,
@@ -580,6 +631,32 @@ void DrawMedWingBed(Vector3 pos)
     );
 }
 
+void DrawScalpel(Vector3 pos, float rotY)
+{
+    rlPushMatrix();
+        rlTranslatef(pos.x, pos.y, pos.z);
+        rlRotatef(rotY, 0, 1, 0);
+
+        // HANDLE
+        rlPushMatrix();
+            rlTranslatef(-0.10f, 0.0f, 0.0f);
+            rlScalef(0.20f, 0.02f, 0.03f);
+            DrawCube((Vector3){0,0,0}, 1, 1, 1, (Color){140,140,150,255});
+        rlPopMatrix();
+
+        // -------------------------
+        // BLADE (ONE triangle)
+        // -------------------------
+        Color bladeColor = {190, 195, 200, 255};
+
+        Vector3 baseBack  = {0.00f,  0.0f,  0.00f};
+        Vector3 baseFront = {0.00f,  0.0f,  0.016f};
+        Vector3 tip       = {0.1f, -0.006f, 0.00f};
+
+        DrawTriangle3D(baseBack, baseFront, tip, bladeColor);
+
+    rlPopMatrix();
+}
 
 
 void DrawFloorOffice(float x, float z, float rot)
@@ -702,83 +779,6 @@ void DrawCornerDesk(Vector3 pos, float rot)
         DrawModel(deskModel, (Vector3){0,0,0}, 1.0f, WHITE);
     rlPopMatrix();
 }
-
-/*void DrawCornerDesk(Vector3 pos, float rotationDeg)
-{
-
-
-    float topW = 1.5f;   // width of each wing
-    float topD = 0.6f;   // depth of each wing
-    float topH = 1.0f;   // height above ground
-
-    float legH = 0.5f;
-
-    float h = 0.85f; // table height
-
-    Vector3 unit = { 1.0f/4.0f, 1.0f, 1.0f/2.0f };
-
-    // A: top-left tile
-    DrawModelEx(
-        deskTopModel,
-        (Vector3){pos.x + 0.0f, pos.y + h, pos.z + 0.0f},
-        (Vector3){0,1,0},
-        0.0f,
-        unit,
-        WHITE
-    );
-
-    // B: top-right tile
-    DrawModelEx(
-        deskTopModel,
-        (Vector3){pos.x + 0.75f, pos.y + h, pos.z + 0.0f},
-        (Vector3){0,1,0},
-        0.0f,
-        unit,
-        WHITE
-    );
-
-    // C: bottom-right tile
-    DrawModelEx(
-        deskTopModel,
-        (Vector3){pos.x + 0.75f, pos.y + h, pos.z + 0.75f},
-        (Vector3){0,1,0},
-        0.0f,
-        unit,
-        WHITE
-    );
-
-
-    // -------------------------
-    // LEGS
-    // -------------------------
-
-    // A bottom-left corner
-DrawModel(deskLegModel,
-          (Vector3){pos.x - 0.3f, pos.y + legH/2, pos.z - 0.3f},
-          1.0f,
-          GRAY);
-
-// A top-left corner
-DrawModel(deskLegModel,
-          (Vector3){pos.x - 0.3f, pos.y + legH/2, pos.z + 0.3f},
-          1.0f,
-          GRAY);
-
-// B top-right corner
-DrawModel(deskLegModel,
-          (Vector3){pos.x + 0.45f, pos.y + legH/2, pos.z + 1.05f},
-          1.0f,
-          GRAY);
-
-// C bottom-right corner
-DrawModel(deskLegModel,
-          (Vector3){pos.x + 1.05f, pos.y + legH/2, pos.z + 1.05f},
-          1.0f,
-          GRAY);
-
-}*/
-
-
 
 void DrawBox(Vector3 pos, Vector3 rotDeg, Vector3 size, Color tint)
 {
@@ -1721,20 +1721,34 @@ UnloadImage(fabricImg);
         rlPopMatrix();
 
 
-if (GetRandomValue(0, 10) == 0)
+/*if (GetRandomValue(0, 10) == 0)
 {
     SpawnSmoke((Vector3){2,  1 + 1.0f, 2});
-    }
+    }*/
 UpdateSmoke(GetFrameTime());
+UpdateDrips(GetFrameTime());
 //if (GeneratorActive)   
 //{  
 DrawSmoke3D();
 //continue;
 //}
 DrawGenerator();
+rlPushMatrix();
+    rlTranslatef(-1.0f, 0.0f, 0.0f);
+DrawMedWingBed((Vector3){6.0f, 0.0f, 6.0f});
+DrawMedWingBed((Vector3){6.0f, 0.0f, 4.0f});
+DrawIVStand((Vector3){5.0f, 0.0f, 5.5f});
+DrawDrips();
+DrawScalpel((Vector3){6.5, 0.575, 5}, -30.0f);
+DrawScalpel((Vector3){6.0, 0.575, 5}, 30.0f);
+DrawScalpel((Vector3){5.5, 0.575, 5}, -60.0f);
+rlPopMatrix();
+rlPushMatrix();
+    rlTranslatef(2.5, 0, 5);
+    rlScalef(0.5, 0.5, 0.5);
+    DrawDesk();
+rlPopMatrix();
 
-DrawMedWingBed((Vector3){6.0f, 0.0f, 6.5f});
-DrawIVStand((Vector3){5.0f, 0.0f, 6.0f});
 
         DrawDesk();
         DrawFloorOffice(0.0f, 2.5f, 0.0f);
@@ -1775,6 +1789,10 @@ DrawIVStand((Vector3){5.0f, 0.0f, 6.0f});
         DrawRoom2();
         rlPushMatrix();
             rlTranslatef(5, 0, 0.0f);
+            DrawRoom2();
+        rlPopMatrix();
+        rlPushMatrix();
+            rlTranslatef(0, 0, 5);
             DrawRoom2();
         rlPopMatrix();
         DrawRoom3();
@@ -1850,6 +1868,11 @@ rlSetBlendMode(RL_BLEND_ALPHA);
 
         EndMode3D();
 
+        BeginMode2D((Camera2D){ .zoom = 1.0f });
+
+        DrawText("Use WASD + mouse to look around", 10, 10, 20, WHITE);
+
+        EndMode2D();
         DrawFPS(10, 10);
         EndDrawing();
     }
