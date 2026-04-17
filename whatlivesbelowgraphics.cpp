@@ -31,6 +31,7 @@ Texture2D texStatic;
 Texture2D pullstartTex;
 Texture2D ivStandTex;
 
+
 bool GeneratorActive = false;
 float dripEndY = 0.1f;   // example height
 
@@ -44,11 +45,57 @@ Model deskLegModel;
 Model trapModel;
 Model deskModel;
 Model pullstartModel;
+Model lockerDoorModel;
 
 
 
 
 
+
+struct DripW {
+    Vector3 pos;
+    float speed;
+    float alpha;
+    bool active;
+};
+
+
+
+const int MAX_DRIPSW = 2;
+DripW dripsW[MAX_DRIPSW];
+
+void SpawnDripW(Vector3 start) {
+    for (int i = 0; i < MAX_DRIPSW; i++) {
+        if (!dripsW[i].active) {
+            dripsW[i].active = true;
+            dripsW[i].pos = start;
+            dripsW[i].speed = 0.6f;   // slow, eerie fall
+            dripsW[i].alpha = 1.0f;
+            return;
+        }
+    }
+}
+
+void UpdateDripsW(float dt) {
+    for (int i = 0; i < MAX_DRIPSW; i++) {
+        if (!dripsW[i].active) continue;
+
+        dripsW[i].pos.y -= dripsW[i].speed * dt;  // falling
+        dripsW[i].alpha -= dt * 0.5f;            // fade a bit
+
+        if (dripsW[i].pos.y <= dripEndY || dripsW[i].alpha <= 0.0f)
+            dripsW[i].active = false;
+    }
+}
+
+void DrawDripsW() {
+    for (int i = 0; i < MAX_DRIPSW; i++) {
+        if (!dripsW[i].active) continue;
+
+        Color c = {50, 50, 200, (unsigned char)(dripsW[i].alpha * 255)};
+        DrawSphere(dripsW[i].pos, 0.03f, c);
+    }
+}
 
 struct Drip {
     Vector3 pos;
@@ -160,357 +207,552 @@ void DrawSmoke3D()
     }
 }
 
+void DrawHalfSphereUpper(Vector3 pos, float radius, Color color)
+{
+    int rings = 16;     // vertical slices
+    int slices = 32;    // horizontal slices
+
+    // Draw only the upper hemisphere (0° → 90°)
+    for (int i = 0; i < rings/2; i++)
+    {
+        float lat0 = (PI * i) / rings;
+        float lat1 = (PI * (i + 1)) / rings;
+
+        for (int j = 0; j < slices; j++)
+        {
+            float lon0 = (2 * PI * j) / slices;
+            float lon1 = (2 * PI * (j + 1)) / slices;
+
+            Vector3 v1 = {
+                pos.x + radius * sinf(lat0) * cosf(lon0),
+                pos.y + radius * cosf(lat0),
+                pos.z + radius * sinf(lat0) * sinf(lon0)
+            };
+            Vector3 v2 = {
+                pos.x + radius * sinf(lat1) * cosf(lon0),
+                pos.y + radius * cosf(lat1),
+                pos.z + radius * sinf(lat1) * sinf(lon0)
+            };
+            Vector3 v3 = {
+                pos.x + radius * sinf(lat1) * cosf(lon1),
+                pos.y + radius * cosf(lat1),
+                pos.z + radius * sinf(lat1) * sinf(lon1)
+            };
+            Vector3 v4 = {
+                pos.x + radius * sinf(lat0) * cosf(lon1),
+                pos.y + radius * cosf(lat0),
+                pos.z + radius * sinf(lat0) * sinf(lon1)
+            };
+
+            DrawTriangle3D(v1, v2, v3, color);
+            DrawTriangle3D(v1, v3, v4, color);
+        }
+    }
+}
+
+void DrawTowel(Vector3 towelPos)
+{
+    Color AIR = { 255, 255, 255, 0 };
+
+    Texture2D towelTex = LoadTexture("textures/Towel.png");
+
+    Mesh towelMesh = GenMeshCube(0.02f, 2, 1);
+    Model towelModel = LoadModelFromMesh(towelMesh);
+    towelModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = towelTex;
+
+    float width = 1.0f;      // total bar width
+    float barRadius = 0.03f; // thickness of the bar
+    float mountSize = 0.12f; // square wall mounts
+
+    // Left and right mount positions
+    Vector3 leftMount  = { towelPos.x - width/2, towelPos.y + 1, towelPos.z };
+    Vector3 rightMount = { towelPos.x + width/2, towelPos.y + 1, towelPos.z };
+
+    // --- Wall mounts ---
+    DrawCube(leftMount,  mountSize, mountSize, mountSize, MOREGRAY);
+    DrawCube(rightMount, mountSize, mountSize, mountSize, MOREGRAY);
+
+    // --- Bar between mounts ---
+    Vector3 barStart = { leftMount.x + mountSize/2, towelPos.y + 1, towelPos.z };
+    Vector3 barEnd   = { rightMount.x - mountSize/2, towelPos.y + 1, towelPos.z };
+
+    DrawCylinderEx(barStart, barEnd, barRadius, barRadius, 16, OTHERGRAY);
+
+    rlPushMatrix();
+        rlTranslatef(towelPos.x, towelPos.y, towelPos.z);
+        rlRotatef(180, 1, 0, 0); 
+        rlRotatef(90, 0, 1, 0); // rotate so it hangs down
+        DrawModel(towelModel, (Vector3){0, 0, 0}, 1.0f, WHITE);
+    rlPopMatrix();
+    // Filler block behind the towel
+DrawCube(
+    (Vector3){towelPos.x, towelPos.y, towelPos.z - 0.1f},
+    1.0f, 2.0f, 0.05f,
+    (Color){50, 50, 50, 255}   // dark neutral filler
+);
+
+}
+
+
+void DrawShower(Vector3 pos, Vector3 scale) {
+    // -----------------------------
+    // DRIPS (spawned here so they fall from the shower head)
+    // -----------------------------
+    SpawnDripW((Vector3){pos.x + 0.1f, pos.y + scale.y/1.25f, pos.z + 0.35f});
+    // Frame corners
+    Vector3 p1 = { pos.x - scale.x/2, pos.y, pos.z - scale.z/2 };
+    Vector3 p2 = { pos.x + scale.x/2, pos.y, pos.z - scale.z/2 };
+    Vector3 p3 = { pos.x + scale.x/2, pos.y, pos.z + scale.z/2 };
+    Vector3 p4 = { pos.x - scale.x/2, pos.y, pos.z + scale.z/2 };
+
+    Vector3 p1_top = { p1.x, pos.y + scale.y, p1.z };
+    Vector3 p2_top = { p2.x, pos.y + scale.y, p2.z };
+    Vector3 p3_top = { p3.x, pos.y + scale.y, p3.z };
+    Vector3 p4_top = { p4.x, pos.y + scale.y, p4.z };
+
+    // Draw vertical edges
+    DrawLine3D(p1, p1_top, LIGHTGRAY);
+    DrawLine3D(p2, p2_top, LIGHTGRAY);
+    DrawLine3D(p3, p3_top, LIGHTGRAY);
+    DrawLine3D(p4, p4_top, LIGHTGRAY);
+
+    // Draw top edges
+    DrawLine3D(p1_top, p2_top, LIGHTGRAY);
+    DrawLine3D(p2_top, p3_top, LIGHTGRAY);
+    DrawLine3D(p3_top, p4_top, LIGHTGRAY);
+    DrawLine3D(p4_top, p1_top, LIGHTGRAY);
+
+    // Draw bottom edges
+    DrawLine3D(p1, p2, LIGHTGRAY);
+    DrawLine3D(p2, p3, LIGHTGRAY);
+    DrawLine3D(p3, p4, LIGHTGRAY);
+    DrawLine3D(p4, p1, LIGHTGRAY);
+
+
+    rlPushMatrix();
+        rlTranslatef(pos.x + 0.1, pos.y + 0.5, pos.z - 1.125f + scale.z/2);
+        rlScalef(0.75f, 0.75f, 0.75f);
+        rlRotatef(30, 1, 0, 0); // tilt shower head forward
+ 
+        // --- Pipe ---
+        Vector3 pipeStart = {0, scale.y, scale.z/2 };
+        Vector3 pipeEnd   = {0, scale.y - 0.25f,scale.z/2 };
+        DrawCylinder(pipeStart, 0.05f, 0.05f, 0.25f, 12, GRAY);
+
+        Vector3 jointPos = { pipeEnd.x, pipeEnd.y - 0.02f, pipeEnd.z };
+
+        // --- Shower head disc ---
+        float headRadius = 0.25f * scale.x;
+        float headThickness = 0.06f;
+
+        Vector3 headPos = { jointPos.x, jointPos.y - headThickness/2 + 0.2f, jointPos.z };
+
+        DrawCylinder(headPos, headRadius, headRadius, headThickness, 24, GRAY);
+        DrawCylinderWires(headPos, headRadius, headRadius, headThickness, 24, DARKGRAY);
+
+        // --- Dome underside ---
+        Vector3 domePos = { headPos.x, headPos.y - headThickness/2 + 0.02f, headPos.z };
+        DrawHalfSphereUpper(domePos, headRadius * 0.95f, GRAY);
+    rlPopMatrix();
+}
+
+void DrawSimpleLocker(Vector3 pos)
+{
+    float doorW = 0.04f;   // thickness
+    float doorH = 1.8f;    // height
+    float doorD = 0.55f;   // depth
+
+    Mesh m = GenMeshCube(doorW, doorH, doorD);
+    lockerDoorModel = LoadModelFromMesh(m);
+    lockerDoorModel = LoadModelFromMesh(m);
+    Texture2D tex = LoadTexture("texture/Locker.png");
+    lockerDoorModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = tex;
+
+
+    float w = 0.6f;
+    float h = 1.8f;
+    float d = 0.55f;
+
+    Color body = (Color){80, 80, 85, 255};
+    Color door = (Color){95, 95, 100, 255};
+
+    // Body
+    DrawCube((Vector3){pos.x, pos.y + h/2, pos.z}, w, h, d, body);
+
+    // Door (slightly forward)
+    //DrawCube((Vector3){pos.x + w*0.51f, pos.y + h/2, pos.z},
+      //       0.04f, h, d*0.98f, door);
+
+    DrawModel(lockerDoorModel,
+          (Vector3){pos.x + w*0.51f, pos.y + h/2, pos.z},
+          1.0f,
+          WHITE);
+
+
+    // Handle
+    DrawCube((Vector3){pos.x + w*0.55f, pos.y + h*0.55f, pos.z + d*0.25f},
+             0.03f, 0.15f, 0.03f, DARKGRAY);
+
+    // Vent slits
+    for (int i = 0; i < 4; i++)
+    {
+        float y = pos.y + h*0.75f - i*0.09f;
+        DrawCube((Vector3){pos.x + w*0.52f, y, pos.z},
+                 0.01f, 0.02f, d*0.7f, BLACK);
+   }
+}
+
 void DrawIVStand(Vector3 pos)
 {
-    // -----------------------------
-    // Drips (spawned here so they fall from the stand)
-    // -----------------------------
-    SpawnDrip((Vector3){pos.x - 0.02f, pos.y + 0.5f, pos.z - 0.05f});
-    DrawCylinder((Vector3){pos.x - 0.02f, pos.y + 0.09f, pos.z - 0.05f}, 0.125, 0.125, 0.01f, 16, (Color){200, 50, 50, 255});
-    // -----------------------------
-    // PREPARATION
-    // -----------------------------
-    Image img = LoadImage("textures/biohazard.png");
-    ivStandTex = LoadTextureFromImage(img);
-    UnloadImage(img); // we only needed the flipped image for the texture, can free now
+   // -----------------------------
+   // Drips (spawned here so they fall from the stand)
+   // -----------------------------
+   SpawnDrip((Vector3){pos.x - 0.02f, pos.y + 0.5f, pos.z - 0.05f});
+   DrawCylinder((Vector3){pos.x - 0.02f, pos.y + 0.09f, pos.z - 0.05f}, 0.125, 0.125, 0.01f, 16, (Color){200, 50, 50, 255});
+   // -----------------------------
+   // PREPARATION
+   // -----------------------------
+   Image img = LoadImage("textures/biohazard.png");
+   ivStandTex = LoadTextureFromImage(img);
+   UnloadImage(img); // we only needed the flipped image for the texture, can free now
 
-    
-    Mesh cubeMesh = GenMeshCube(0.125f, 0.125f, 0.0f);
-    Model cubeModel = LoadModelFromMesh(cubeMesh);
-    cubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = ivStandTex;
+   
+   Mesh cubeMesh = GenMeshCube(0.125f, 0.125f, 0.0f);
+   Model cubeModel = LoadModelFromMesh(cubeMesh);
+   cubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = ivStandTex;
 
-    // -----------------------------
-    // DIMENSIONS
-    // -----------------------------
-    float poleH = 1.6f;
-    float poleR = 0.03f;
+   // -----------------------------
+   // DIMENSIONS
+   // -----------------------------
+   float poleH = 1.6f;
+   float poleR = 0.03f;
 
-    float baseH = 0.05f;
-    float baseR = 0.25f;
+   float baseH = 0.05f;
+   float baseR = 0.25f;
 
-    float hookLen = 0.18f;
-    float hookThick = 0.03f;
+   float hookLen = 0.18f;
+   float hookThick = 0.03f;
 
-    // Bag
-    float bagW = 0.20f;
-    float bagH = 0.30f;
-    float bagD = 0.08f;
+   // Bag
+   float bagW = 0.20f;
+   float bagH = 0.30f;
+   float bagD = 0.08f;
 
-    // -----------------------------
-    // BASE
-    // -----------------------------
-    DrawCylinder(
-        (Vector3){pos.x, pos.y + baseH/2.0f, pos.z},
-        baseR, baseR, baseH,
-        16,
-        OTHERGRAY
-    );
+   // -----------------------------
+   // BASE
+   // -----------------------------
+   DrawCylinder(
+       (Vector3){pos.x, pos.y + baseH/2.0f, pos.z},
+       baseR, baseR, baseH,
+       16,
+       OTHERGRAY
+   );
 
-    // -----------------------------
-    // POLE 2
-    // -----------------------------
-    rlPushMatrix();
-    rlTranslatef(pos.x - 0.02f, pos.y + baseH + poleH/100.0f + 0.6f, pos.z - 0.05f);
-    rlRotatef(3, 1, 0, 0); // rotate so it stands up
-    DrawCylinder(
-        (Vector3){0, 0, 0},
-        poleR, poleR, poleH - 0.95f,
-        16,
-        OTHERGRAY
-    );
-    rlPopMatrix();
-    // ------------------------------
-    // pole
-    // ------------------------------
-    DrawCylinder(
-        (Vector3){pos.x - 0.2f, pos.y + baseH + poleH/100.0f, pos.z - 0.05f},
-        poleR, poleR, poleH,
-        16,
-        MOREGRAY
-    );
-    // -----------------------------
-    // pole 3
-    // -----------------------------
-    rlPushMatrix();
-    rlTranslatef(pos.x - 0.02f, pos.y + baseH + poleH/100.0f + 2.25f - poleH + 0.18, pos.z - 0.0502f);
-    rlRotatef(3, 1, 0, 0); // rotate so it stands up
-    DrawCylinder(
-        (Vector3){0, -0.18f, 0.02f},
-        poleR*0, poleR, poleH - 1.95f,
-        16,
-        OTHERGRAY
-    );
-    rlPopMatrix();
-    // -----------------------------
-    // HOOKS
-    // -----------------------------
-    float hookY = pos.y + baseH + poleH - 0.1f;
+   // -----------------------------
+   // POLE 2
+   // -----------------------------
+   rlPushMatrix();
+   rlTranslatef(pos.x - 0.02f, pos.y + baseH + poleH/100.0f + 0.6f, pos.z - 0.05f);
+   rlRotatef(3, 1, 0, 0); // rotate so it stands up
+   DrawCylinder(
+       (Vector3){0, 0, 0},
+       poleR, poleR, poleH - 0.95f,
+       16,
+       OTHERGRAY
+   );
+   rlPopMatrix();
+   // ------------------------------
+   // pole
+   // ------------------------------
+   DrawCylinder(
+       (Vector3){pos.x - 0.2f, pos.y + baseH + poleH/100.0f, pos.z - 0.05f},
+       poleR, poleR, poleH,
+       16,
+       MOREGRAY
+   );
+   // -----------------------------
+   // pole 3
+   // -----------------------------
+   rlPushMatrix();
+   rlTranslatef(pos.x - 0.02f, pos.y + baseH + poleH/100.0f + 2.25f - poleH + 0.18, pos.z - 0.0502f);
+   rlRotatef(3, 1, 0, 0); // rotate so it stands up
+   DrawCylinder(
+       (Vector3){0, -0.18f, 0.02f},
+       poleR*0, poleR, poleH - 1.95f,
+       16,
+       OTHERGRAY
+   );
+   rlPopMatrix();
+   // -----------------------------
+   // HOOKS
+   // -----------------------------
+   float hookY = pos.y + baseH + poleH - 0.1f;
 
-    // Left hook
-    DrawCube(
-        (Vector3){pos.x - hookLen/2.0f, hookY, pos.z - 0.08f},
-        hookLen,
-        hookThick,
-        hookThick,
-        MOREGRAY
-    );
+   // Left hook
+   DrawCube(
+       (Vector3){pos.x - hookLen/2.0f, hookY, pos.z - 0.08f},
+       hookLen,
+       hookThick,
+       hookThick,
+       MOREGRAY
+   );
 
-    // Right hook
-    DrawCube(
-        (Vector3){pos.x + hookLen/2.0f, hookY, pos.z - 0.08f},
-        hookLen,
-        hookThick,
-        hookThick,
-        MOREGRAY
-    );
+   // Right hook
+   DrawCube(
+       (Vector3){pos.x + hookLen/2.0f, hookY, pos.z - 0.08f},
+       hookLen,
+       hookThick,
+       hookThick,
+       MOREGRAY
+   );
 
-    // -----------------------------
-    // SQUARE BAG (stylized)
-    // -----------------------------
-    rlPushMatrix();
-    rlTranslatef(pos.x - bagW/2.0f, hookY - bagH/2.0f - 0.045f, pos.z + 0.08f - 0.13f);
-    rlRotatef(180, 1, 0, 0); // rotate so front faces forward
-    DrawModel(cubeModel, (Vector3){0, 0, 0}, 1.0f, WHITE);
-    rlPopMatrix();
+   // -----------------------------
+   // SQUARE BAG (stylized)
+   // -----------------------------
+   rlPushMatrix();
+   rlTranslatef(pos.x - bagW/2.0f, hookY - bagH/2.0f - 0.045f, pos.z + 0.08f - 0.13f);
+   rlRotatef(180, 1, 0, 0); // rotate so front faces forward
+   DrawModel(cubeModel, (Vector3){0, 0, 0}, 1.0f, WHITE);
+   rlPopMatrix();
 
-    DrawCube(
-        (Vector3){
-            pos.x - hookLen/2.0f,   // hangs from left hook
-            hookY - bagH/2.0f + 0.013f,
-            pos.z
-        },
-        bagW,
-        bagH,
-        bagD,
-        (Color){200, 60, 60, 255}   // soft red, cartoony
-    );
+   DrawCube(
+       (Vector3){
+           pos.x - hookLen/2.0f,   // hangs from left hook
+           hookY - bagH/2.0f + 0.013f,
+           pos.z
+       },
+       bagW,
+       bagH,
+       bagD,
+       (Color){200, 60, 60, 255}   // soft red, cartoony
+   );
 }
 
 
 void DrawTubeJointRotatable(
-    Vector3 jointPos,
-    float radius,        // tube radius AND sphere radius
-    float tubeLength,
-    float angleDeg,
-    Vector3 axis,
-    float tubeBRot,     // NEW
-    float offsety1,
-    float offsety2,
-    float offsetx1,
-    float offsetx2,
-    float offsetz1,
-    float offsetz2
+   Vector3 jointPos,
+   float radius,        // tube radius AND sphere radius
+   float tubeLength,
+   float angleDeg,
+   Vector3 axis,
+   float tubeBRot,     // NEW
+   float offsety1,
+   float offsety2,
+   float offsetx1,
+   float offsetx2,
+   float offsetz1,
+   float offsetz2
 )
 {
-    Color color = GRAY;
-    float half = tubeLength * 0.5f;
+   Color color = GRAY;
+   float half = tubeLength * 0.5f;
 
-    // Tube A: flat along -Z, touching the sphere
-    rlPushMatrix();
-        rlTranslatef(jointPos.x - offsetx1, jointPos.y - offsety1, jointPos.z - offsetz1);
-        rlRotatef(90, 1, 0, 0);                 // make cylinder lie flat (Y → Z)
-        DrawCylinder(
-            (Vector3){0, -half - radius, 0},    // center so it touches sphere
-            radius, radius, tubeLength,
-            16, color
-        );
-    rlPopMatrix();
+   // Tube A: flat along -Z, touching the sphere
+   rlPushMatrix();
+       rlTranslatef(jointPos.x - offsetx1, jointPos.y - offsety1, jointPos.z - offsetz1);
+       rlRotatef(90, 1, 0, 0);                 // make cylinder lie flat (Y → Z)
+       DrawCylinder(
+           (Vector3){0, -half - radius, 0},    // center so it touches sphere
+           radius, radius, tubeLength,
+           16, color
+       );
+   rlPopMatrix();
 
-    // Joint sphere
-    DrawSphere(jointPos, radius, OTHERERGRAY);
+   // Joint sphere
+   DrawSphere(jointPos, radius, OTHERERGRAY);
 
-    // Tube B: rotatable, flat, touching the sphere
-    rlPushMatrix();
-        rlTranslatef(jointPos.x - offsetx2, jointPos.y - offsety2, jointPos.z - offsetz2);
-        rlRotatef(angleDeg, axis.x, axis.y, axis.z);
-        rlRotatef(90, 1, 0, 0);                 // make cylinder lie flat (Y → Z)
-        rlRotatef(tubeBRot, 0, 0, 1);                 // NEW: Tube B twist
-        DrawCylinder(
-            (Vector3){0, half + radius, 0},     // center so it touches sphere
-            radius, radius, tubeLength,
-            16, color
-        );
-    rlPopMatrix();
+   // Tube B: rotatable, flat, touching the sphere
+   rlPushMatrix();
+       rlTranslatef(jointPos.x - offsetx2, jointPos.y - offsety2, jointPos.z - offsetz2);
+       rlRotatef(angleDeg, axis.x, axis.y, axis.z);
+       rlRotatef(90, 1, 0, 0);                 // make cylinder lie flat (Y → Z)
+       rlRotatef(tubeBRot, 0, 0, 1);                 // NEW: Tube B twist
+       DrawCylinder(
+           (Vector3){0, half + radius, 0},     // center so it touches sphere
+           radius, radius, tubeLength,
+           16, color
+       );
+   rlPopMatrix();
 }
 
 void DrawSmokeSphere(Vector3 pos, float radius, float alpha)
 {
-    Color c = { 180, 180, 190, (unsigned char)(alpha * 255) };
-    DrawSphere(pos, radius, c);
+   Color c = { 180, 180, 190, (unsigned char)(alpha * 255) };
+   DrawSphere(pos, radius, c);
 }
 
 
 void DrawRecoilStarter(Vector3 pos, float scale, Color housingColor, Color handleColor)
 {
-    // -----------------------------
-    //preparattion
-    // -----------------------------
+   // -----------------------------
+   //preparattion
+   // -----------------------------
 
-    pullstartTex = LoadTexture("textures/pullstart.png");
+   pullstartTex = LoadTexture("textures/pullstart.png");
 
-    Mesh m = GenMeshCylinder(0.45f, 0.12f, 32);
-    pullstartModel = LoadModelFromMesh(m);
-    pullstartModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = pullstartTex;
+   Mesh m = GenMeshCylinder(0.45f, 0.12f, 32);
+   pullstartModel = LoadModelFromMesh(m);
+   pullstartModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = pullstartTex;
 
-    // -----------------------------
-    // MAIN ROUND HOUSING
-    // -----------------------------
-    float radius = 0.45f * scale;
-    float thickness = 0.12f * scale;
+   // -----------------------------
+   // MAIN ROUND HOUSING
+   // -----------------------------
+   float radius = 0.45f * scale;
+   float thickness = 0.12f * scale;
 
-    rlPushMatrix();
-    rlTranslatef(pos.x, pos.y, pos.z);
-    DrawModel(pullstartModel, (Vector3){0,0,0}, scale, WHITE);
-    rlPopMatrix();
+   rlPushMatrix();
+   rlTranslatef(pos.x, pos.y, pos.z);
+   DrawModel(pullstartModel, (Vector3){0,0,0}, scale, WHITE);
+   rlPopMatrix();
 
 
-    // -----------------------------
-    // CENTER HUB
-    // -----------------------------
-    Vector3 hubPos = pos;
-    hubPos.z += thickness * 0.55f;
+   // -----------------------------
+   // CENTER HUB
+   // -----------------------------
+   Vector3 hubPos = pos;
+   hubPos.z += thickness * 0.55f;
 
-    DrawCylinder(hubPos, radius * 0.25f, radius * 0.25f, thickness * 0.3f, 16, DARKGRAY);
+   DrawCylinder(hubPos, radius * 0.25f, radius * 0.25f, thickness * 0.3f, 16, DARKGRAY);
 
-    // -----------------------------
-    // VENT BLADES (fake slots)
-    // -----------------------------
-    for (int i = 0; i < 12; i++)
-    {
-        rlPushMatrix();
-        rlTranslatef(pos.x, pos.y + thickness, pos.z + thickness * 0.6f);
-        rlRotatef(90, 1, 0, 0); // tilt vents forward
-        rlRotatef(i * (360.0f / 12.0f), 0, 0, 1);
+   // -----------------------------
+   // VENT BLADES (fake slots)
+   // -----------------------------
+   for (int i = 0; i < 12; i++)
+   {
+       rlPushMatrix();
+       rlTranslatef(pos.x, pos.y + thickness, pos.z + thickness * 0.6f);
+       rlRotatef(90, 1, 0, 0); // tilt vents forward
+       rlRotatef(i * (360.0f / 12.0f), 0, 0, 1);
 
-        DrawCube((Vector3){radius * 0.55f, 0, 0}, 
-                 radius * 0.25f, 
-                 radius * 0.05f, 
-                 thickness * 0.1f, 
-                 BLACK);
+       DrawCube((Vector3){radius * 0.55f, 0, 0}, 
+                radius * 0.25f, 
+                radius * 0.05f, 
+                thickness * 0.1f, 
+                BLACK);
 
-        rlPopMatrix();
-    }
+       rlPopMatrix();
+   }
 
-    // -----------------------------
-    // PULL CORD
-    // -----------------------------
-    Vector3 cordStart = pos;
-    cordStart.x += radius * 0.9f;
-    cordStart.z += thickness * 0.2f;
+   // -----------------------------
+   // PULL CORD
+   // -----------------------------
+   Vector3 cordStart = pos;
+   cordStart.x += radius * 0.9f;
+   cordStart.z += thickness * 0.2f;
 
-    Vector3 cordEnd = cordStart;
-    cordEnd.x += 0.4f * scale;
+   Vector3 cordEnd = cordStart;
+   cordEnd.x += 0.4f * scale;
 
-    DrawCylinderEx(cordStart, cordEnd, 0.03f * scale, 0.03f * scale, 8, BLACK);
-    
-    // -----------------------------
-    // HANDLE
-    // -----------------------------
-    Vector3 handlePos = cordEnd;
-    handlePos.x += 0.14f * scale;
-    DrawCube(handlePos, 
-             0.25f * scale, 
-             0.12f * scale, 
-             0.12f * scale, 
-             handleColor);
+   DrawCylinderEx(cordStart, cordEnd, 0.03f * scale, 0.03f * scale, 8, BLACK);
+   
+   // -----------------------------
+   // HANDLE
+   // -----------------------------
+   Vector3 handlePos = cordEnd;
+   handlePos.x += 0.14f * scale;
+   DrawCube(handlePos, 
+            0.25f * scale, 
+            0.12f * scale, 
+            0.12f * scale, 
+            handleColor);
 }
 
 void DrawGenerator(void)
 {
-    SpawnSmoke((Vector3){9.67, 1, -0.6f});
-    SpawnSmoke((Vector3){9.67f, 0.9f, -0.6f});
-    SpawnSmoke((Vector3){9.67f, 0.8f, -0.6f});
-    DrawTubeJointRotatable(
-    (Vector3){9.67, 0.19, 0},
-    0.19f,
-    0.5f,
-    90.0f,
-    (Vector3){0, 1, 0},   // rotate flat
-    0,
-    0,
-    0,
-    0,
-    0.43f,
-    0.09f,    // rotate around z axis
-    0
-        );
-        DrawTubeJointRotatable(
-    (Vector3){10.5, 0.19, 0},
-    0.19f,
-    0.5f,
-    180.0f,
-    (Vector3){0, 1, 0},   // rotate flat
-    270,
-    0,
-    0,
-    0,
-    -0.38f,
-    0.09f,    // rotate around z axis
-    0
-        
+   SpawnSmoke((Vector3){9.67, 1, -0.6f});
+   SpawnSmoke((Vector3){9.67f, 0.9f, -0.6f});
+   SpawnSmoke((Vector3){9.67f, 0.8f, -0.6f});
+   DrawTubeJointRotatable(
+   (Vector3){9.67, 0.19, 0},
+   0.19f,
+   0.5f,
+   90.0f,
+   (Vector3){0, 1, 0},   // rotate flat
+   0,
+   0,
+   0,
+   0,
+   0.43f,
+   0.09f,    // rotate around z axis
+   0
+       );
+       DrawTubeJointRotatable(
+   (Vector3){10.5, 0.19, 0},
+   0.19f,
+   0.5f,
+   180.0f,
+   (Vector3){0, 1, 0},   // rotate flat
+   270,
+   0,
+   0,
+   0,
+   -0.38f,
+   0.09f,    // rotate around z axis
+   0
+       
 );
-    rlPushMatrix();
-    rlTranslatef(10.5, 0.78, -0.6);
-    rlRotatef(90, 0, 0, 1);
-    rlRotatef(90, 1, 0, 0);
-        DrawTubeJointRotatable(
-    (Vector3){0, 0, 0},
-    0.19f,
-    0.5f,
-    180.0f,
-    (Vector3){0, 1, 0},   // rotate flat
-    270,
-    0,
-    0,
-    0,
-    -0.38f,
-    0.09f,    // rotate around z axis
-    0
-        
+   rlPushMatrix();
+   rlTranslatef(10.5, 0.78, -0.6);
+   rlRotatef(90, 0, 0, 1);
+   rlRotatef(90, 1, 0, 0);
+       DrawTubeJointRotatable(
+   (Vector3){0, 0, 0},
+   0.19f,
+   0.5f,
+   180.0f,
+   (Vector3){0, 1, 0},   // rotate flat
+   270,
+   0,
+   0,
+   0,
+   -0.38f,
+   0.09f,    // rotate around z axis
+   0
+       
 );
 rlPopMatrix();
-    rlPushMatrix();
-    rlTranslatef(10, 0.78, 0.0);
-    rlRotatef(90, 0, 0, 1);
-    rlRotatef(180, 1, 0, 0);
-    rlRotatef(180, 1, 0, 0);
-        DrawTubeJointRotatable(
-    (Vector3){0, 0, 0},
-    0.19f,
-    0.5f,
-    180.0f,
-    (Vector3){0, 1, 0},   // rotate flat
-    270,
-    0,
-    0,
-    0,
-    -0.38f,
-    0.09f,    // rotate around z axis
-    0
-    );
+   rlPushMatrix();
+   rlTranslatef(10, 0.78, 0.0);
+   rlRotatef(90, 0, 0, 1);
+   rlRotatef(180, 1, 0, 0);
+   rlRotatef(180, 1, 0, 0);
+       DrawTubeJointRotatable(
+   (Vector3){0, 0, 0},
+   0.19f,
+   0.5f,
+   180.0f,
+   (Vector3){0, 1, 0},   // rotate flat
+   270,
+   0,
+   0,
+   0,
+   -0.38f,
+   0.09f,    // rotate around z axis
+   0
+   );
 
 rlPopMatrix();
 
-        DrawTubeJointRotatable(
-    (Vector3){9.67, 0.19, -0.6},
-    0.19f,
-    0.5f,
-    90.0f,
-    (Vector3){0, 1, 0},   // rotate flat
-    0,
-    0,
-    0,
-    0,
-    0.43f,
-    0.09f,    // rotate around z axis
-    0
-        );
+       DrawTubeJointRotatable(
+   (Vector3){9.67, 0.19, -0.6},
+   0.19f,
+   0.5f,
+   90.0f,
+   (Vector3){0, 1, 0},   // rotate flat
+   0,
+   0,
+   0,
+   0,
+   0.43f,
+   0.09f,    // rotate around z axis
+   0
+       );
 rlPushMatrix();
 rlTranslatef(10, 0.5, -1.35);
 rlRotatef(90, 1, 0, 0);
 rlRotatef(180, 0, 1, 0);
 rlRotatef(180, 1, 0, 0);
-        DrawRecoilStarter((Vector3){0, 0, 0}, 0.5f, GRAY, RED);
+       DrawRecoilStarter((Vector3){0, 0, 0}, 0.5f, GRAY, RED);
 rlPopMatrix();
 
 DrawCylinder((Vector3){9.67, 0.33, -0.6}, 0.25, 0.19, 0.5, 16, DARKGRAY);
@@ -521,327 +763,327 @@ DrawCube((Vector3){10, 0, -0.65}, 0.9, 1.5, 1.4, OTHERGRAY);
 
 void DrawMedWingBed(Vector3 pos)
 {
-    // -----------------------------
-    // DIMENSIONS
-    // -----------------------------
-    float legH      = 0.30f;
-    float legR      = 0.05f;
+   // -----------------------------
+   // DIMENSIONS
+   // -----------------------------
+   float legH      = 0.30f;
+   float legR      = 0.05f;
 
-    float frameW    = 1.9f;
-    float frameH    = 0.10f;
-    float frameD    = 0.75f;
+   float frameW    = 1.9f;
+   float frameH    = 0.10f;
+   float frameD    = 0.75f;
 
-    float mattressH = 0.20f;
+   float mattressH = 0.20f;
 
-    float headH     = 0.45f;
-    float headT     = 0.06f;
+   float headH     = 0.45f;
+   float headT     = 0.06f;
 
-    // Y positions
-    float yLegCenter       = pos.y + legH/2.0f;
-    float yFrameCenter     = pos.y + legH + frameH/2.0f;
-    float yMattressCenter  = yFrameCenter + frameH/2.0f + mattressH/2.0f;
+   // Y positions
+   float yLegCenter       = pos.y + legH/2.0f;
+   float yFrameCenter     = pos.y + legH + frameH/2.0f;
+   float yMattressCenter  = yFrameCenter + frameH/2.0f + mattressH/2.0f;
 
-    // -----------------------------
-    // LEGS
-    // -----------------------------
-    float lx = frameW/2 - 0.15f;
-    float lz = frameD/2 - 0.15f;
+   // -----------------------------
+   // LEGS
+   // -----------------------------
+   float lx = frameW/2 - 0.15f;
+   float lz = frameD/2 - 0.15f;
 
-    Vector3 legs[4] = {
-        { pos.x + lx, yLegCenter, pos.z + lz },
-        { pos.x - lx, yLegCenter, pos.z + lz },
-        { pos.x + lx, yLegCenter, pos.z - lz },
-        { pos.x - lx, yLegCenter, pos.z - lz }
-    };
+   Vector3 legs[4] = {
+       { pos.x + lx, yLegCenter, pos.z + lz },
+       { pos.x - lx, yLegCenter, pos.z + lz },
+       { pos.x + lx, yLegCenter, pos.z - lz },
+       { pos.x - lx, yLegCenter, pos.z - lz }
+   };
 
-    for (int i = 0; i < 4; i++)
-        DrawCylinder(legs[i], legR, legR, legH, 16, OTHERERGRAY);
+   for (int i = 0; i < 4; i++)
+       DrawCylinder(legs[i], legR, legR, legH, 16, OTHERERGRAY);
 
-    // -----------------------------
-    // FRAME
-    // -----------------------------
-    DrawCube(
-        (Vector3){pos.x, yFrameCenter, pos.z},
-        frameW, frameH, frameD,
-        OTHERGRAY
-    );
+   // -----------------------------
+   // FRAME
+   // -----------------------------
+   DrawCube(
+       (Vector3){pos.x, yFrameCenter, pos.z},
+       frameW, frameH, frameD,
+       OTHERGRAY
+   );
 
-    // -----------------------------
-    // MATTRESS
-    // -----------------------------
-    DrawCube(
-        (Vector3){pos.x, yMattressCenter, pos.z},
-        frameW * 0.95f,
-        mattressH,
-        frameD * 0.95f,
-        (Color){200, 220, 230, 255}
-    );
+   // -----------------------------
+   // MATTRESS
+   // -----------------------------
+   DrawCube(
+       (Vector3){pos.x, yMattressCenter, pos.z},
+       frameW * 0.95f,
+       mattressH,
+       frameD * 0.95f,
+       (Color){200, 220, 230, 255}
+   );
 
-    // -----------------------------
-    // HEADBOARD
-    // -----------------------------
-    DrawCube(
-        (Vector3){
-            pos.x - frameW/2 + headT/2,
-            yFrameCenter + frameH/2.0f + headH/2.0f,
-            pos.z
-        },
-        headT,
-        headH,
-        frameD,
-        MOREGRAY
-    );
+   // -----------------------------
+   // HEADBOARD
+   // -----------------------------
+   DrawCube(
+       (Vector3){
+           pos.x - frameW/2 + headT/2,
+           yFrameCenter + frameH/2.0f + headH/2.0f,
+           pos.z
+       },
+       headT,
+       headH,
+       frameD,
+       MOREGRAY
+   );
 
-    // -----------------------------
-    // PILLOW
-    // -----------------------------
-    float pillowW = frameW * 0.40f;
-    float pillowD = frameD * 0.55f;
-    float pillowH = 0.1f;
+   // -----------------------------
+   // PILLOW
+   // -----------------------------
+   float pillowW = frameW * 0.40f;
+   float pillowD = frameD * 0.55f;
+   float pillowH = 0.1f;
 
-    DrawCube(
-        (Vector3){
-            pos.x - frameW*0.35f,
-            yMattressCenter + mattressH/2.0f + pillowH/2.0f,
-            pos.z
-        },
-        pillowD,
-        pillowH,
-        pillowW,
-        (Color){235, 240, 245, 255}
-    );
+   DrawCube(
+       (Vector3){
+           pos.x - frameW*0.35f,
+           yMattressCenter + mattressH/2.0f + pillowH/2.0f,
+           pos.z
+       },
+       pillowD,
+       pillowH,
+       pillowW,
+       (Color){235, 240, 245, 255}
+   );
 
-    // -----------------------------
-    // BLANKET
-    // -----------------------------
-    float blanketW = frameW * 0.92f;
-    float blanketD = frameD * 0.95f;   // shorter so pillow shows
-    float blanketH = 0.06f;
+   // -----------------------------
+   // BLANKET
+   // -----------------------------
+   float blanketW = frameW * 0.92f;
+   float blanketD = frameD * 0.95f;   // shorter so pillow shows
+   float blanketH = 0.06f;
 
-    DrawCube(
-        (Vector3){
-            pos.x + 0.05f,   // tiny shift so it looks tucked
-            yMattressCenter + mattressH/2.0f + blanketH/2.0f,
-            pos.z
-        },
-        blanketW,
-        blanketH,
-        blanketD,
-        (Color){180, 200, 210, 255}   // soft medical blue‑gray
-    );
+   DrawCube(
+       (Vector3){
+           pos.x + 0.05f,   // tiny shift so it looks tucked
+           yMattressCenter + mattressH/2.0f + blanketH/2.0f,
+           pos.z
+       },
+       blanketW,
+       blanketH,
+       blanketD,
+       (Color){180, 200, 210, 255}   // soft medical blue‑gray
+   );
 }
 
 void DrawScalpel(Vector3 pos, float rotY)
 {
-    rlPushMatrix();
-        rlTranslatef(pos.x, pos.y, pos.z);
-        rlRotatef(rotY, 0, 1, 0);
+   rlPushMatrix();
+       rlTranslatef(pos.x, pos.y, pos.z);
+       rlRotatef(rotY, 0, 1, 0);
 
-        // HANDLE
-        rlPushMatrix();
-            rlTranslatef(-0.10f, 0.0f, 0.0f);
-            rlScalef(0.20f, 0.02f, 0.03f);
-            DrawCube((Vector3){0,0,0}, 1, 1, 1, (Color){140,140,150,255});
-        rlPopMatrix();
+       // HANDLE
+       rlPushMatrix();
+           rlTranslatef(-0.10f, 0.0f, 0.0f);
+           rlScalef(0.20f, 0.02f, 0.03f);
+           DrawCube((Vector3){0,0,0}, 1, 1, 1, (Color){140,140,150,255});
+       rlPopMatrix();
 
-        // -------------------------
-        // BLADE (ONE triangle)
-        // -------------------------
-        Color bladeColor = {190, 195, 200, 255};
+       // -------------------------
+       // BLADE (ONE triangle)
+       // -------------------------
+       Color bladeColor = {190, 195, 200, 255};
 
-        Vector3 baseBack  = {0.00f,  0.0f,  0.00f};
-        Vector3 baseFront = {0.00f,  0.0f,  0.016f};
-        Vector3 tip       = {0.1f, -0.006f, 0.00f};
+       Vector3 baseBack  = {0.00f,  0.0f,  0.00f};
+       Vector3 baseFront = {0.00f,  0.0f,  0.016f};
+       Vector3 tip       = {0.1f, -0.006f, 0.00f};
 
-        DrawTriangle3D(baseBack, baseFront, tip, bladeColor);
+       DrawTriangle3D(baseBack, baseFront, tip, bladeColor);
 
-    rlPopMatrix();
+   rlPopMatrix();
 }
 
 
 void DrawFloorOffice(float x, float z, float rot)
 {
-    rlPushMatrix();
-        rlTranslatef(x, 0.1f, z);
-        rlRotatef(rot, 0, 1, 0);
-        DrawCube((Vector3){x, 0.01f, z}, 4.0f, 0.1f, 1.0f, GRAY);
-    rlPopMatrix();
+   rlPushMatrix();
+       rlTranslatef(x, 0.1f, z);
+       rlRotatef(rot, 0, 1, 0);
+       DrawCube((Vector3){x, 0.01f, z}, 4.0f, 0.1f, 1.0f, GRAY);
+   rlPopMatrix();
 }
 
 void DrawCustomGrid(int size, float spacing, Vector3 center, Color color)
 {
-    int half = size / 2;
+   int half = size / 2;
 
-    for (int i = -half; i <= half; i++)
-    {
-        // Vertical lines (Z direction)
-        DrawLine3D(
-            (Vector3){ center.x + i * spacing, 0.0f, center.z - half * spacing },
-            (Vector3){ center.x + i * spacing, 0.0f, center.z + half * spacing },
-            color
-        );
+   for (int i = -half; i <= half; i++)
+   {
+       // Vertical lines (Z direction)
+       DrawLine3D(
+           (Vector3){ center.x + i * spacing, 0.0f, center.z - half * spacing },
+           (Vector3){ center.x + i * spacing, 0.0f, center.z + half * spacing },
+           color
+       );
 
-        // Horizontal lines (X direction)
-        DrawLine3D(
-            (Vector3){ center.x - half * spacing, 0.0f, center.z + i * spacing },
-            (Vector3){ center.x + half * spacing, 0.0f, center.z + i * spacing },
-            color
-        );
-    }
+       // Horizontal lines (X direction)
+       DrawLine3D(
+           (Vector3){ center.x - half * spacing, 0.0f, center.z + i * spacing },
+           (Vector3){ center.x + half * spacing, 0.0f, center.z + i * spacing },
+           color
+       );
+   }
 }
 
 Mesh MergeMeshes(Mesh a, Mesh b)
 {
-    Mesh out = {0};
+   Mesh out = {0};
 
-    out.vertexCount   = a.vertexCount + b.vertexCount;
-    out.triangleCount = a.triangleCount + b.triangleCount;
+   out.vertexCount   = a.vertexCount + b.vertexCount;
+   out.triangleCount = a.triangleCount + b.triangleCount;
 
-    out.vertices = (float*)MemAlloc(out.vertexCount * 3 * sizeof(float));
-    out.texcoords = (float*)MemAlloc(out.vertexCount * 2 * sizeof(float));
-    out.indices = (unsigned short*)MemAlloc(out.triangleCount * 3 * sizeof(unsigned short));
+   out.vertices = (float*)MemAlloc(out.vertexCount * 3 * sizeof(float));
+   out.texcoords = (float*)MemAlloc(out.vertexCount * 2 * sizeof(float));
+   out.indices = (unsigned short*)MemAlloc(out.triangleCount * 3 * sizeof(unsigned short));
 
-    memcpy(out.vertices, a.vertices, a.vertexCount * 3 * sizeof(float));
-    memcpy(out.texcoords, a.texcoords, a.vertexCount * 2 * sizeof(float));
-    memcpy(out.indices, a.indices, a.triangleCount * 3 * sizeof(unsigned short));
+   memcpy(out.vertices, a.vertices, a.vertexCount * 3 * sizeof(float));
+   memcpy(out.texcoords, a.texcoords, a.vertexCount * 2 * sizeof(float));
+   memcpy(out.indices, a.indices, a.triangleCount * 3 * sizeof(unsigned short));
 
-    // Offset b’s indices
-    for (int i = 0; i < b.triangleCount * 3; i++)
-        out.indices[a.triangleCount * 3 + i] = b.indices[i] + a.vertexCount;
+   // Offset b’s indices
+   for (int i = 0; i < b.triangleCount * 3; i++)
+       out.indices[a.triangleCount * 3 + i] = b.indices[i] + a.vertexCount;
 
-    // Append b’s vertices + UVs
-    memcpy(out.vertices + a.vertexCount * 3, b.vertices, b.vertexCount * 3 * sizeof(float));
-    memcpy(out.texcoords + a.vertexCount * 2, b.texcoords, b.vertexCount * 2 * sizeof(float));
+   // Append b’s vertices + UVs
+   memcpy(out.vertices + a.vertexCount * 3, b.vertices, b.vertexCount * 3 * sizeof(float));
+   memcpy(out.texcoords + a.vertexCount * 2, b.texcoords, b.vertexCount * 2 * sizeof(float));
 
-    UploadMesh(&out, false);
-    return out;
+   UploadMesh(&out, false);
+   return out;
 }
 
 Mesh GenTrap(float bw, float tw, float h, float bd, float td)
 {
-    Mesh m = {0};
-    m.vertexCount = 8;
-    m.triangleCount = 12;
+   Mesh m = {0};
+   m.vertexCount = 8;
+   m.triangleCount = 12;
 
-    m.vertices = (float*)MemAlloc(8*3*sizeof(float));
-    m.texcoords = (float*)MemAlloc(8*2*sizeof(float));
-    m.indices = (unsigned short*)MemAlloc(12*3*sizeof(unsigned short));
+   m.vertices = (float*)MemAlloc(8*3*sizeof(float));
+   m.texcoords = (float*)MemAlloc(8*2*sizeof(float));
+   m.indices = (unsigned short*)MemAlloc(12*3*sizeof(unsigned short));
 
-    float hb = bw/2, ht = tw/2;
-    float hbd = bd/2, htd = td/2;
+   float hb = bw/2, ht = tw/2;
+   float hbd = bd/2, htd = td/2;
 
-    float v[24] = {
-    // bottom (rotated)
-    -hb, -hbd, 0,
-     hb, -hbd, 0,
-     hb,  hbd, 0,
-    -hb,  hbd, 0,
+   float v[24] = {
+   // bottom (rotated)
+   -hb, -hbd, 0,
+    hb, -hbd, 0,
+    hb,  hbd, 0,
+   -hb,  hbd, 0,
 
-    // top (rotated)
-    -ht, -htd, -h,
-     ht, -htd, -h,
-     ht,  htd, -h,
-    -ht,  htd, -h
+   // top (rotated)
+   -ht, -htd, -h,
+    ht, -htd, -h,
+    ht,  htd, -h,
+   -ht,  htd, -h
 };
 
-    memcpy(m.vertices, v, sizeof(v));
+   memcpy(m.vertices, v, sizeof(v));
 
-    float uv[16] = {
-        0,0, 1,0, 1,1, 0,1,
-        0,0, 1,0, 1,1, 0,1
-    };
-    memcpy(m.texcoords, uv, sizeof(uv));
+   float uv[16] = {
+       0,0, 1,0, 1,1, 0,1,
+       0,0, 1,0, 1,1, 0,1
+   };
+   memcpy(m.texcoords, uv, sizeof(uv));
 
-    unsigned short ind[36] = {
-    // bottom
-    0,1,2,  0,2,3,
+   unsigned short ind[36] = {
+   // bottom
+   0,1,2,  0,2,3,
 
-    // top
-    4,6,5,  4,7,6,
+   // top
+   4,6,5,  4,7,6,
 
-    // sides
-    0,4,5,  0,5,1,
-    1,5,6,  1,6,2,
-    2,6,7,  2,7,3,
-    3,7,4,  3,4,0
-    };
+   // sides
+   0,4,5,  0,5,1,
+   1,5,6,  1,6,2,
+   2,6,7,  2,7,3,
+   3,7,4,  3,4,0
+   };
 
-    memcpy(m.indices, ind, sizeof(ind));
+   memcpy(m.indices, ind, sizeof(ind));
 
-    UploadMesh(&m, false);
-    return m;
+   UploadMesh(&m, false);
+   return m;
 }
 void DrawCornerDesk(Vector3 pos, float rot)
 {
-    rlPushMatrix();
-        rlTranslatef(pos.x, pos.y, pos.z);
-        rlRotatef(rot, 0, 1, 0);
-        DrawModel(deskModel, (Vector3){0,0,0}, 1.0f, WHITE);
-    rlPopMatrix();
+   rlPushMatrix();
+       rlTranslatef(pos.x, pos.y, pos.z);
+       rlRotatef(rot, 0, 1, 0);
+       DrawModel(deskModel, (Vector3){0,0,0}, 1.0f, WHITE);
+   rlPopMatrix();
 }
 
 void DrawBox(Vector3 pos, Vector3 rotDeg, Vector3 size, Color tint)
 {
-    // Load the textured cube model once
-    static Model boxModel = {0};
-    static bool loaded = false;
+   // Load the textured cube model once
+   static Model boxModel = {0};
+   static bool loaded = false;
 
-    if (!loaded)
-    {
-        Mesh cube = GenMeshCube(1.0f, 1.0f, 1.0f);
-        boxModel = LoadModelFromMesh(cube);
+   if (!loaded)
+   {
+       Mesh cube = GenMeshCube(1.0f, 1.0f, 1.0f);
+       boxModel = LoadModelFromMesh(cube);
 
-        Texture2D tex = LoadTexture("textures/box.png");
-        boxModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = tex;
+       Texture2D tex = LoadTexture("textures/box.png");
+       boxModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = tex;
 
-        loaded = true;
-    }
+       loaded = true;
+   }
 
-    rlPushMatrix();
+   rlPushMatrix();
 
-        // Apply the -5 shift on X
-        rlTranslatef(pos.x - 5.0f, pos.y, pos.z);
+       // Apply the -5 shift on X
+       rlTranslatef(pos.x - 5.0f, pos.y, pos.z);
 
-        // Apply rotations
-        rlRotatef(rotDeg.x, 1, 0, 0);
-        rlRotatef(rotDeg.y, 0, 1, 0);
-        rlRotatef(rotDeg.z, 0, 0, 1);
+       // Apply rotations
+       rlRotatef(rotDeg.x, 1, 0, 0);
+       rlRotatef(rotDeg.y, 0, 1, 0);
+       rlRotatef(rotDeg.z, 0, 0, 1);
 
-        // Apply scaling
-        rlScalef(size.x, size.y, size.z);
+       // Apply scaling
+       rlScalef(size.x, size.y, size.z);
 
-        // Draw the textured cube
-        DrawModel(boxModel, (Vector3){0,0,0}, 1.0f, tint);
+       // Draw the textured cube
+       DrawModel(boxModel, (Vector3){0,0,0}, 1.0f, tint);
 
-    rlPopMatrix();
+   rlPopMatrix();
 }
 
 // The computer
 void DrawComputer(Vector3 pos, float scale, float rotation)
 {
-    // --- SCREEN ---
-    Mesh screenMesh = GenMeshCube(0.40f, 0.30f, 0.02f);
-    Model screenModel = LoadModelFromMesh(screenMesh);
-    screenModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall; // placeholder
+   // --- SCREEN ---
+   Mesh screenMesh = GenMeshCube(0.40f, 0.30f, 0.02f);
+   Model screenModel = LoadModelFromMesh(screenMesh);
+   screenModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall; // placeholder
 
-    Mesh staticMesh = GenMeshCube(0.40f, 0.30f, 0.0f);
-    Model staticModel = LoadModelFromMesh(staticMesh);
-    staticModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texStatic;
+   Mesh staticMesh = GenMeshCube(0.40f, 0.30f, 0.0f);
+   Model staticModel = LoadModelFromMesh(staticMesh);
+   staticModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texStatic;
 
-    // --- TRAPEZOID BACK ---
-    extern Model trapModel; // your trapezoid model
+   // --- TRAPEZOID BACK ---
+   extern Model trapModel; // your trapezoid model
 
-    // --- STAND ---
-    Mesh standMesh = GenMeshCube(0.10f, 0.20f, 0.10f);
-    Model standModel = LoadModelFromMesh(standMesh);
-    standModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texMetal;
+   // --- STAND ---
+   Mesh standMesh = GenMeshCube(0.10f, 0.20f, 0.10f);
+   Model standModel = LoadModelFromMesh(standMesh);
+   standModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texMetal;
 
-    // --- DRAW ---
-    // --- ROTATED COMPUTER BODY ---
-    rlPushMatrix();
-        rlTranslatef(pos.x, pos.y, pos.z);
-        rlRotatef(rotation, 0, 1, 0);   // <--- ROTATION HERE
-        rlScalef(scale, scale, scale);
+   // --- DRAW ---
+   // --- ROTATED COMPUTER BODY ---
+   rlPushMatrix();
+       rlTranslatef(pos.x, pos.y, pos.z);
+       rlRotatef(rotation, 0, 1, 0);   // <--- ROTATION HERE
+       rlScalef(scale, scale, scale);
 
         // Screen
         DrawModel(screenModel, (Vector3){0, 0.25f, 0}, 1.0f, WHITE);
@@ -1508,6 +1750,7 @@ Mesh meshTop = GenMeshCylinder(0.40f, 0.04f, 32);  // radius, height, slices
 TableTopModel = LoadModelFromMesh(meshTop);
 TableTopModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = TexTableNoise;
 
+Mesh m = GenMeshCube(0.04f, 1.8f, 0.55f);  // thickness, height, depth
 
 // ---- RUST TEXTURE ----
 Image rustImg = GenImagePerlinNoise(64, 64, 0, 0, 6.0f);
@@ -1721,34 +1964,61 @@ UnloadImage(fabricImg);
         rlPopMatrix();
 
 
-/*if (GetRandomValue(0, 10) == 0)
-{
-    SpawnSmoke((Vector3){2,  1 + 1.0f, 2});
-    }*/
+
 UpdateSmoke(GetFrameTime());
 UpdateDrips(GetFrameTime());
+UpdateDripsW(GetFrameTime()/2);
 //if (GeneratorActive)   
 //{  
 DrawSmoke3D();
 //continue;
 //}
 DrawGenerator();
-rlPushMatrix();
-    rlTranslatef(-1.0f, 0.0f, 0.0f);
-DrawMedWingBed((Vector3){6.0f, 0.0f, 6.0f});
-DrawMedWingBed((Vector3){6.0f, 0.0f, 4.0f});
-DrawIVStand((Vector3){5.0f, 0.0f, 5.5f});
-DrawDrips();
-DrawScalpel((Vector3){6.5, 0.575, 5}, -30.0f);
-DrawScalpel((Vector3){6.0, 0.575, 5}, 30.0f);
-DrawScalpel((Vector3){5.5, 0.575, 5}, -60.0f);
-rlPopMatrix();
-rlPushMatrix();
-    rlTranslatef(2.5, 0, 5);
-    rlScalef(0.5, 0.5, 0.5);
-    DrawDesk();
-rlPopMatrix();
 
+DrawDripsW();
+
+        rlPushMatrix();
+            rlTranslatef(-1.0f, 0.0f, 0.0f);
+            DrawMedWingBed((Vector3){6.0f, 0.0f, 6.0f});
+            DrawMedWingBed((Vector3){6.0f, 0.0f, 4.0f});
+            DrawIVStand((Vector3){5.0f, 0.0f, 5.5f});
+            DrawDrips();
+            DrawScalpel((Vector3){6.5, 0.575, 5}, -30.0f);
+            DrawScalpel((Vector3){6.0, 0.575, 5}, 30.0f);
+            DrawScalpel((Vector3){5.5, 0.575, 5}, -60.0f);
+        rlPopMatrix();
+        rlPushMatrix();
+        rlTranslatef(2.5, 0, 5);
+            rlScalef(0.5, 0.5, 0.5);
+            DrawDesk();
+        rlPopMatrix();
+
+        rlPushMatrix();
+        rlTranslatef(7.5, 0, 5);
+        rlScalef(0.5, 0.5, 0.5);
+            DrawDesk();
+        rlPopMatrix();
+        DrawComputer((Vector3){10, 0.5f, 5}, 1.0f, 180.0f);
+        rlPushMatrix();
+            rlTranslatef(10.0, 0, 4.25);
+            rlScalef(1.25, 1.5, 1.25);
+            DrawCafeChair();
+        rlPopMatrix();
+
+        DrawShower((Vector3){-3.5f, 0.0f, 6.3f}, (Vector3){1.0f, 2.0f, 1.0f});
+        DrawShower((Vector3){-4.5f, 0.0f, 6.3f}, (Vector3){1.0f, 2.0f, 1.0f});
+        rlPushMatrix();
+        rlTranslatef(-5.5f, 1.0f, 6.3f);
+        rlRotatef(180.0f, 0, 1, 0);
+        DrawTowel((Vector3){0, 0, -0.4f});
+        rlPopMatrix();
+        rlPushMatrix();
+        rlTranslatef(-6.5f, 1.0f, 6.3f);
+        rlRotatef(180.0f, 0, 1, 0);
+        DrawTowel((Vector3){0, 0, -0.4f});
+        rlPopMatrix();
+
+        DrawSimpleLocker((Vector3){0, 10, 0});
 
         DrawDesk();
         DrawFloorOffice(0.0f, 2.5f, 0.0f);
@@ -1797,6 +2067,14 @@ rlPopMatrix();
         rlPopMatrix();
         DrawRoom3();
         DrawRoom4();
+        rlPushMatrix();
+            rlTranslatef(10.0f, 0.0f, 5.0f);
+            DrawRoom();
+        rlPopMatrix();
+        rlPushMatrix();
+            rlTranslatef(0, 0, 5);
+            DrawRoom3();
+        rlPopMatrix();
         DrawCentralBlock(DARKGRAY, GRAY, wallcolor, cubeModel, cubeModelUp, cubeModelDown);
 
         // -------------------------------
@@ -1870,7 +2148,34 @@ rlSetBlendMode(RL_BLEND_ALPHA);
 
         BeginMode2D((Camera2D){ .zoom = 1.0f });
 
-        DrawText("Use WASD + mouse to look around", 10, 10, 20, WHITE);
+        DrawText("Use North, South, East, and West to move around", 50, 50, 20, WHITE);
+
+        DrawText("Press ESC to exit", 50, 80, 20, WHITE);
+
+        DrawRectangle(150, 650, 300, 75, (Color){128, 128, 128, 150});
+        DrawText("South", 275, 675, 20, BLACK);
+        // Define here when done with graphics
+
+        DrawRectangle(150, 500, 300, 75, (Color){128, 128, 128, 150});
+        DrawText("North", 275, 525, 20, BLACK);
+        // Define here when done with graphics
+
+        DrawRectangle(0, 575, 300, 75, (Color){140, 140, 140, 150});
+        DrawText("West", 125, 600, 20, BLACK);
+        // Define here when done with graphics
+
+        DrawRectangle(300, 575, 300, 75, (Color){140, 140, 140, 150});
+        DrawText("East", 375, 600, 20, BLACK);
+        // Define here when done with graphics
+
+        DrawRectangle(880, 550, 400, 200, (Color){0, 0, 0, 150});
+        DrawText("HIDE", 1025, 625, 40, WHITE);
+
+        DrawRectangle(880, 350, 400, 200, (Color){255, 255, 255, 150});
+        DrawText("UNHIDE", 1005, 425, 40, BLACK);
+
+        DrawRectangle(500, 480, 300, 75, (Color){128, 128, 128, 150});
+        DrawText("Search", 625, 505, 20, BLACK);
 
         EndMode2D();
         DrawFPS(10, 10);
