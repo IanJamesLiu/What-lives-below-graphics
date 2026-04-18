@@ -35,6 +35,10 @@ Texture2D ivStandTex;
 bool GeneratorActive = false;
 float dripEndY = 0.1f;   // example height
 
+    float doorW = 0.04f;   // thickness
+    float doorH = 1.8f;    // height
+    float doorD = 0.55f;   // depth
+
 float fogRadius = 20.0f;                  // how far the fog extends
 Model wall;
 Model TableTopModel;
@@ -46,8 +50,15 @@ Model trapModel;
 Model deskModel;
 Model pullstartModel;
 Model lockerDoorModel;
+Model towelModel;
+Model screenModel;
+Model staticModel;
+Model cubeModel;
+Model standModel;
+Model seatModel;
+Model backModel;
 
-
+Mesh m;
 
 
 
@@ -249,20 +260,78 @@ void DrawHalfSphereUpper(Vector3 pos, float radius, Color color)
         }
     }
 }
-
-void DrawTowel(Vector3 towelPos)
+void initall(void)
 {
-    Color AIR = { 255, 255, 255, 0 };
 
     Texture2D towelTex = LoadTexture("textures/Towel.png");
 
     Mesh towelMesh = GenMeshCube(0.02f, 2, 1);
-    Model towelModel = LoadModelFromMesh(towelMesh);
+    towelModel = LoadModelFromMesh(towelMesh);
     towelModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = towelTex;
+
+    Texture2D tex = LoadTexture("textures/Locker.png");
+
+    m = GenMeshCube(doorW, doorH, doorD);
+    lockerDoorModel = LoadModelFromMesh(m);
+    lockerDoorModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = tex;
+
+   Image img = LoadImage("textures/biohazard.png");
+   ivStandTex = LoadTextureFromImage(img);
+   UnloadImage(img); // we only needed the flipped image for the texture, can free now
+
+   
+   Mesh cubeMesh = GenMeshCube(0.125f, 0.125f, 0.0f);
+   cubeModel = LoadModelFromMesh(cubeMesh);
+   cubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = ivStandTex;
+
+   pullstartTex = LoadTexture("textures/pullstart.png");
+
+   Mesh m = GenMeshCylinder(0.45f, 0.12f, 32);
+   pullstartModel = LoadModelFromMesh(m);
+   pullstartModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = pullstartTex;
+
+   // --- SCREEN ---
+   Mesh screenMesh = GenMeshCube(0.40f, 0.30f, 0.02f);
+   screenModel = LoadModelFromMesh(screenMesh);
+   screenModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall; // placeholder
+
+   Mesh staticMesh = GenMeshCube(0.40f, 0.30f, 0.0f);
+   staticModel = LoadModelFromMesh(staticMesh);
+   staticModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texStatic;
+      // --- STAND ---
+   Mesh standMesh = GenMeshCube(0.10f, 0.20f, 0.10f);
+   standModel = LoadModelFromMesh(standMesh);
+   standModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texMetal;
+
+    float seatW = 0.45f;
+    float seatH = 0.05f;
+
+    float legR = 0.03f;
+    float legH = 0.28f;
+
+    float backW = seatW;
+    float backH = 0.35f;
+    float backT = 0.05f;
+
+    Color seatColor = (Color){120, 70, 50, 255};
+    Mesh seatMesh = GenMeshCube(seatW, seatH, seatW);
+    seatModel = LoadModelFromMesh(seatMesh);
+    seatModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texFabric;
+
+    Color backColor = (Color){100, 60, 45, 255};
+    Mesh backMesh = GenMeshCube(backW, backH, backT);
+    backModel = LoadModelFromMesh(backMesh);
+    backModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texFabric;
+}
+void DrawTowel(Vector3 towelPos)
+{
+    Color AIR = { 255, 255, 255, 0 };
+
 
     float width = 1.0f;      // total bar width
     float barRadius = 0.03f; // thickness of the bar
     float mountSize = 0.12f; // square wall mounts
+
 
     // Left and right mount positions
     Vector3 leftMount  = { towelPos.x - width/2, towelPos.y + 1, towelPos.z };
@@ -356,18 +425,13 @@ void DrawShower(Vector3 pos, Vector3 scale) {
     rlPopMatrix();
 }
 
-void DrawSimpleLocker(Vector3 pos)
+void DrawSimpleLocker(Vector3 pos, Vector3 rot)
 {
-    float doorW = 0.04f;   // thickness
-    float doorH = 1.8f;    // height
-    float doorD = 0.55f;   // depth
-
-    Mesh m = GenMeshCube(doorW, doorH, doorD);
-    lockerDoorModel = LoadModelFromMesh(m);
-    lockerDoorModel = LoadModelFromMesh(m);
-    Texture2D tex = LoadTexture("texture/Locker.png");
-    lockerDoorModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = tex;
-
+    rlPushMatrix();
+    rlTranslatef(pos.x, pos.y, pos.z);
+    rlRotatef(rot.x, 1, 0, 0);
+    rlRotatef(rot.y, 0, 1, 0);
+    rlRotatef(rot.z, 0, 0, 1);
 
     float w = 0.6f;
     float h = 1.8f;
@@ -377,29 +441,30 @@ void DrawSimpleLocker(Vector3 pos)
     Color door = (Color){95, 95, 100, 255};
 
     // Body
-    DrawCube((Vector3){pos.x, pos.y + h/2, pos.z}, w, h, d, body);
+    DrawCube((Vector3){pos.x - pos.x, pos.y + h/2 - pos.y, pos.z - pos.z}, w, h, d, body);
 
     // Door (slightly forward)
     //DrawCube((Vector3){pos.x + w*0.51f, pos.y + h/2, pos.z},
       //       0.04f, h, d*0.98f, door);
 
     DrawModel(lockerDoorModel,
-          (Vector3){pos.x + w*0.51f, pos.y + h/2, pos.z},
+          (Vector3){pos.x + w*0.51f - pos.x, pos.y + h/2 - pos.y, pos.z - pos.z},
           1.0f,
           WHITE);
 
 
     // Handle
-    DrawCube((Vector3){pos.x + w*0.55f, pos.y + h*0.55f, pos.z + d*0.25f},
+    DrawCube((Vector3){pos.x + w*0.55f - pos.x, pos.y + h*0.55f - pos.y, pos.z + d*0.25f - pos.z},
              0.03f, 0.15f, 0.03f, DARKGRAY);
 
     // Vent slits
     for (int i = 0; i < 4; i++)
     {
         float y = pos.y + h*0.75f - i*0.09f;
-        DrawCube((Vector3){pos.x + w*0.52f, y, pos.z},
+        DrawCube((Vector3){pos.x + w*0.52f - pos.x, y - pos.y, pos.z - pos.z},
                  0.01f, 0.02f, d*0.7f, BLACK);
    }
+    rlPopMatrix();
 }
 
 void DrawIVStand(Vector3 pos)
@@ -409,17 +474,6 @@ void DrawIVStand(Vector3 pos)
    // -----------------------------
    SpawnDrip((Vector3){pos.x - 0.02f, pos.y + 0.5f, pos.z - 0.05f});
    DrawCylinder((Vector3){pos.x - 0.02f, pos.y + 0.09f, pos.z - 0.05f}, 0.125, 0.125, 0.01f, 16, (Color){200, 50, 50, 255});
-   // -----------------------------
-   // PREPARATION
-   // -----------------------------
-   Image img = LoadImage("textures/biohazard.png");
-   ivStandTex = LoadTextureFromImage(img);
-   UnloadImage(img); // we only needed the flipped image for the texture, can free now
-
-   
-   Mesh cubeMesh = GenMeshCube(0.125f, 0.125f, 0.0f);
-   Model cubeModel = LoadModelFromMesh(cubeMesh);
-   cubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = ivStandTex;
 
    // -----------------------------
    // DIMENSIONS
@@ -528,6 +582,21 @@ void DrawIVStand(Vector3 pos)
    );
 }
 
+void DrawBioHazardBox(Vector3 pos, Vector3 scale)
+{
+    // Box dimensions
+    float w = scale.x;
+    float h = scale.y;
+    float d = scale.z;
+rlPushMatrix();
+    rlTranslatef(pos.x, pos.y, pos.z + 0.26f);
+    rlRotatef(180, 1, 0, 0); // rotate so front faces forward
+    rlScalef(w*2, h*2, d*2);
+    DrawModel(cubeModel, (Vector3){0, 0, 0}, 1.0f, WHITE);
+rlPopMatrix();
+DrawCube((Vector3){pos.x, pos.y, pos.z}, w/2, h/2, d/2, BROWN);
+}
+
 
 void DrawTubeJointRotatable(
    Vector3 jointPos,
@@ -584,15 +653,6 @@ void DrawSmokeSphere(Vector3 pos, float radius, float alpha)
 
 void DrawRecoilStarter(Vector3 pos, float scale, Color housingColor, Color handleColor)
 {
-   // -----------------------------
-   //preparattion
-   // -----------------------------
-
-   pullstartTex = LoadTexture("textures/pullstart.png");
-
-   Mesh m = GenMeshCylinder(0.45f, 0.12f, 32);
-   pullstartModel = LoadModelFromMesh(m);
-   pullstartModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = pullstartTex;
 
    // -----------------------------
    // MAIN ROUND HOUSING
@@ -1061,22 +1121,11 @@ void DrawBox(Vector3 pos, Vector3 rotDeg, Vector3 size, Color tint)
 // The computer
 void DrawComputer(Vector3 pos, float scale, float rotation)
 {
-   // --- SCREEN ---
-   Mesh screenMesh = GenMeshCube(0.40f, 0.30f, 0.02f);
-   Model screenModel = LoadModelFromMesh(screenMesh);
-   screenModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall; // placeholder
-
-   Mesh staticMesh = GenMeshCube(0.40f, 0.30f, 0.0f);
-   Model staticModel = LoadModelFromMesh(staticMesh);
-   staticModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texStatic;
 
    // --- TRAPEZOID BACK ---
    extern Model trapModel; // your trapezoid model
 
-   // --- STAND ---
-   Mesh standMesh = GenMeshCube(0.10f, 0.20f, 0.10f);
-   Model standModel = LoadModelFromMesh(standMesh);
-   standModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texMetal;
+
 
    // --- DRAW ---
    // --- ROTATED COMPUTER BODY ---
@@ -1212,11 +1261,6 @@ void DrawCafeChair(void)
         0.0f
     };
 
-    Color seatColor = (Color){120, 70, 50, 255};
-    Mesh seatMesh = GenMeshCube(seatW, seatH, seatW);
-    Model seatModel = LoadModelFromMesh(seatMesh);
-    seatModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texFabric;
-
     DrawModel(seatModel, seatCenter, 1.0f, WHITE);
 
 
@@ -1230,11 +1274,6 @@ void DrawCafeChair(void)
         legH + seatH + backH/2.0f,
         -seatW/2.0f + backT/2.0f + backOffset
     };
-
-    Color backColor = (Color){100, 60, 45, 255};
-    Mesh backMesh = GenMeshCube(backW, backH, backT);
-    Model backModel = LoadModelFromMesh(backMesh);
-    backModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texFabric;
 
     DrawModel(backModel, backCenter, 1.0f, WHITE);
 
@@ -1885,6 +1924,8 @@ UnloadImage(fabricImg);
 
     InitCabinetTest();
 
+    initall();
+
     while (!IsKeyPressed(KEY_ESCAPE))
     {
         UpdateCamera(&cam, CAMERA_FREE);
@@ -2006,19 +2047,32 @@ DrawDripsW();
         rlPopMatrix();
 
         DrawShower((Vector3){-3.5f, 0.0f, 6.3f}, (Vector3){1.0f, 2.0f, 1.0f});
-        DrawShower((Vector3){-4.5f, 0.0f, 6.3f}, (Vector3){1.0f, 2.0f, 1.0f});
+        DrawShower((Vector3){-6.5f, 0.0f, 6.3f}, (Vector3){1.0f, 2.0f, 1.0f});
         rlPushMatrix();
-        rlTranslatef(-5.5f, 1.0f, 6.3f);
-        rlRotatef(180.0f, 0, 1, 0);
+        rlTranslatef(-3.5f, 1.0f, 3.8f);
+        rlRotatef(0.0f, 0, 1, 0);
         DrawTowel((Vector3){0, 0, -0.4f});
         rlPopMatrix();
-        rlPushMatrix();
-        rlTranslatef(-6.5f, 1.0f, 6.3f);
-        rlRotatef(180.0f, 0, 1, 0);
-        DrawTowel((Vector3){0, 0, -0.4f});
-        rlPopMatrix();
+        DrawTowel((Vector3){-6.5f, 1.0f, 3.4f});
 
-        DrawSimpleLocker((Vector3){0, 10, 0});
+        DrawSimpleLocker((Vector3){-1.5f, 0, 8.5f}, (Vector3){0, 0, 0});
+        DrawSimpleLocker((Vector3){1.5f, 0, 8.5f}, (Vector3){0, 180, 0});
+        DrawSimpleLocker((Vector3){-1.5f, 0, 11.5f}, (Vector3){0, 0, 0});
+        DrawSimpleLocker((Vector3){1.5f, 0, 11.5f}, (Vector3){0, 180, 0});
+
+        DrawSimpleLocker((Vector3){3.5f, 0, 11.5f}, (Vector3){0, 0, 0});
+        DrawSimpleLocker((Vector3){6.5f, 0, 11.5f}, (Vector3){0, 180, 0});
+        DrawSimpleLocker((Vector3){3.5f, 0, 8.5f}, (Vector3){0, 0, 0});
+        DrawBioHazardBox((Vector3){3.75f, 2, 8.75f}, (Vector3){1, 1, 1});
+        SpawnDrip((Vector3){5, 1.75, 9});
+        DrawSimpleLocker((Vector3){6.5f, 0, 8.5f}, (Vector3){0, 180, 0});
+        rlPushMatrix();
+        rlTranslatef(2.5, 0, 10);
+        rlScalef(0.5, 0.75, 0.5);
+        DrawDesk();
+        rlPopMatrix();
+        
+
 
         DrawDesk();
         DrawFloorOffice(0.0f, 2.5f, 0.0f);
@@ -2067,6 +2121,10 @@ DrawDripsW();
         rlPopMatrix();
         DrawRoom3();
         DrawRoom4();
+        rlPushMatrix();
+            rlTranslatef(0, 0, 5);
+            DrawRoom4();
+        rlPopMatrix();
         rlPushMatrix();
             rlTranslatef(10.0f, 0.0f, 5.0f);
             DrawRoom();
