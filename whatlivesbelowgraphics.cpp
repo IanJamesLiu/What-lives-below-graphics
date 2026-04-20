@@ -3,6 +3,7 @@
 #include "rlights.h"
 #include "math.h"
 #include <cstring>
+#include <ctime>
 
 Color wallcolor = {73, 73, 81, 255 };
 Color wallcolor2 = {78, 78, 86, 255};
@@ -30,10 +31,13 @@ Texture2D texComp;
 Texture2D texStatic;
 Texture2D pullstartTex;
 Texture2D ivStandTex;
+Texture2D texconv;
+Texture2D doorTex;
 
 
 bool GeneratorActive = false;
 float dripEndY = 0.1f;   // example height
+
 
     float doorW = 0.04f;   // thickness
     float doorH = 1.8f;    // height
@@ -57,11 +61,130 @@ Model cubeModel;
 Model standModel;
 Model seatModel;
 Model backModel;
+Model conveyorModel;
+Model doorModel;
+Model bootModel;
+Model helmetModel;
 
-Mesh m;
+Mesh MergeMeshes(Mesh a, Mesh b)
+{
+   Mesh out = {0};
 
+   out.vertexCount   = a.vertexCount + b.vertexCount;
+   out.triangleCount = a.triangleCount + b.triangleCount;
 
+   out.vertices = (float*)MemAlloc(out.vertexCount * 3 * sizeof(float));
+   out.texcoords = (float*)MemAlloc(out.vertexCount * 2 * sizeof(float));
+   out.indices = (unsigned short*)MemAlloc(out.triangleCount * 3 * sizeof(unsigned short));
 
+   memcpy(out.vertices, a.vertices, a.vertexCount * 3 * sizeof(float));
+   memcpy(out.texcoords, a.texcoords, a.vertexCount * 2 * sizeof(float));
+   memcpy(out.indices, a.indices, a.triangleCount * 3 * sizeof(unsigned short));
+
+   // Offset b’s indices
+   for (int i = 0; i < b.triangleCount * 3; i++)
+       out.indices[a.triangleCount * 3 + i] = b.indices[i] + a.vertexCount;
+
+   // Append b’s vertices + UVs
+   memcpy(out.vertices + a.vertexCount * 3, b.vertices, b.vertexCount * 3 * sizeof(float));
+   memcpy(out.texcoords + a.vertexCount * 2, b.texcoords, b.vertexCount * 2 * sizeof(float));
+
+   UploadMesh(&out, false);
+   return out;
+}
+
+Mesh GenTrap(float bw, float tw, float h, float bd, float td)
+{
+   Mesh m = {0};
+   m.vertexCount = 8;
+   m.triangleCount = 12;
+
+   m.vertices = (float*)MemAlloc(8*3*sizeof(float));
+   m.texcoords = (float*)MemAlloc(8*2*sizeof(float));
+   m.indices = (unsigned short*)MemAlloc(12*3*sizeof(unsigned short));
+
+   float hb = bw/2, ht = tw/2;
+   float hbd = bd/2, htd = td/2;
+
+   float v[24] = {
+   // bottom (rotated)
+   -hb, -hbd, 0,
+    hb, -hbd, 0,
+    hb,  hbd, 0,
+   -hb,  hbd, 0,
+
+   // top (rotated)
+   -ht, -htd, -h,
+    ht, -htd, -h,
+    ht,  htd, -h,
+   -ht,  htd, -h
+};
+
+   memcpy(m.vertices, v, sizeof(v));
+
+   float uv[16] = {
+       0,0, 1,0, 1,1, 0,1,
+       0,0, 1,0, 1,1, 0,1
+   };
+   memcpy(m.texcoords, uv, sizeof(uv));
+
+   unsigned short ind[36] = {
+   // bottom
+   0,1,2,  0,2,3,
+
+   // top
+   4,6,5,  4,7,6,
+
+   // sides
+   0,4,5,  0,5,1,
+   1,5,6,  1,6,2,
+   2,6,7,  2,7,3,
+   3,7,4,  3,4,0
+   };
+
+   memcpy(m.indices, ind, sizeof(ind));
+
+   UploadMesh(&m, false);
+   return m;
+}
+
+Mesh GenBoot()
+{
+    // Foot section
+    Mesh foot = GenTrap(
+        1.0f, 0.8f,   // bottom width, top width
+        0.4f,         // height
+        0.5f, 0.4f    // bottom depth, top depth
+    );
+
+    // Ankle section
+    Mesh ankle = GenTrap(
+        0.6f, 0.6f,
+        0.8f,
+        0.5f, 0.5f
+    );
+
+    // Move ankle upward
+    for (int i = 0; i < ankle.vertexCount; i++)
+        ankle.vertices[i*3 + 1] += 0.4f;
+
+    // Heel block
+    Mesh heel = GenTrap(
+        0.4f, 0.4f,
+        0.3f,
+        0.4f, 0.4f
+    );
+
+    // Move heel backward
+    for (int i = 0; i < heel.vertexCount; i++)
+        heel.vertices[i*3 + 2] += 0.2f;
+
+    // Merge all parts
+    Mesh boot = MergeMeshes(foot, ankle);
+    boot = MergeMeshes(boot, heel);
+
+    return boot;
+}
 
 struct DripW {
     Vector3 pos;
@@ -209,7 +332,8 @@ void UpdateSmoke(float dt)
 
 void DrawSmoke3D()
 {
-    for (int i = 0; i < MAX_SMOKE; i++)
+    for (int i = 0; i < MAX_SMOKE; 
+i++)
     {
         if (!smoke[i].active) continue;
 
@@ -262,6 +386,15 @@ void DrawHalfSphereUpper(Vector3 pos, float radius, Color color)
 }
 void initall(void)
 {
+    doorTex = LoadTexture("textures/door.png");
+
+    float doorW = 0.55f;   // matches your horizontal rectangle
+    float doorH = 1.8f;   // matches your vertical rectangle
+    float doorD = 0.1f;   // thin door
+
+    Mesh doorMesh = GenMeshCube(doorW, doorH, doorD);
+    doorModel = LoadModelFromMesh(doorMesh);
+    doorModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = doorTex;
 
     Texture2D towelTex = LoadTexture("textures/Towel.png");
 
@@ -269,9 +402,15 @@ void initall(void)
     towelModel = LoadModelFromMesh(towelMesh);
     towelModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = towelTex;
 
+    texconv = LoadTexture("textures/belt.png");
+
+    Mesh conveyorMesh = GenMeshCube(3.5f, 0.25f, 1.0f);
+    conveyorModel = LoadModelFromMesh(conveyorMesh);
+    conveyorModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texconv;
+
     Texture2D tex = LoadTexture("textures/Locker.png");
 
-    m = GenMeshCube(doorW, doorH, doorD);
+    Mesh m = GenMeshCube(doorD, doorH, doorW);
     lockerDoorModel = LoadModelFromMesh(m);
     lockerDoorModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = tex;
 
@@ -286,8 +425,8 @@ void initall(void)
 
    pullstartTex = LoadTexture("textures/pullstart.png");
 
-   Mesh m = GenMeshCylinder(0.45f, 0.12f, 32);
-   pullstartModel = LoadModelFromMesh(m);
+   Mesh mm = GenMeshCylinder(0.45f, 0.12f, 32);
+   pullstartModel = LoadModelFromMesh(mm);
    pullstartModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = pullstartTex;
 
    // --- SCREEN ---
@@ -312,6 +451,12 @@ void initall(void)
     float backW = seatW;
     float backH = 0.35f;
     float backT = 0.05f;
+    
+    Image fabricImg = GenImagePerlinNoise(64, 64, 0, 0, 8.0f);
+ImageColorTint(&fabricImg, (Color){120, 120, 130, 255});
+texFabric = LoadTextureFromImage(fabricImg);
+UnloadImage(fabricImg);
+
 
     Color seatColor = (Color){120, 70, 50, 255};
     Mesh seatMesh = GenMeshCube(seatW, seatH, seatW);
@@ -322,7 +467,66 @@ void initall(void)
     Mesh backMesh = GenMeshCube(backW, backH, backT);
     backModel = LoadModelFromMesh(backMesh);
     backModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texFabric;
+
+    Mesh bootMesh = GenBoot();
+    bootModel = LoadModelFromMesh(bootMesh);
+
 }
+
+void DrawConveyor(Vector3 pos, float beltLength)
+{
+    float beltWidth  = 1.0f;
+    float beltHeight = 0.25f;
+
+    Color beltColor = (Color){60, 60, 65, 255};
+    Color sideColor = (Color){40, 40, 45, 255};
+    Color rollerColor = (Color){120, 120, 120, 255};
+
+    rlPushMatrix();
+    rlTranslatef(pos.x, pos.y, pos.z);
+
+    // --- Belt base ---
+    //DrawCube((Vector3){0, beltHeight/2, 0}, beltLength, beltHeight, beltWidth, beltColor);
+
+    // --- Side rails ---
+    float railH = 0.15f;
+    float railW = 0.05f;
+
+    DrawCube((Vector3){0, beltHeight + railH/2,  beltWidth/2 - railW/2}, beltLength, railH, railW, sideColor);
+    DrawCube((Vector3){0, beltHeight + railH/2, -beltWidth/2 + railW/2}, beltLength, railH, railW, sideColor);
+
+    // --- Rollers (front + back) ---
+    float rollerR = 0.12f;
+    float rollerL = beltWidth * 0.9f;
+
+    Vector3 leftRoller  = { -beltLength/2, beltHeight/2, 0 };
+    Vector3 rightRoller = {  beltLength/2, beltHeight/2, 0 };
+    rlPopMatrix();
+    rlPushMatrix();
+    rlTranslatef(pos.x, pos.y + 0.125, pos.z - 0.575f);
+    rlRotatef(90, 1, 0, 0); // rotate so rollers aren't horizontal
+    DrawCylinder(leftRoller,  rollerR, rollerR, rollerL, 16, rollerColor);
+    DrawCylinder(rightRoller, rollerR, rollerR, rollerL, 16, rollerColor);
+    rlPopMatrix();
+    rlPushMatrix();
+    rlTranslatef(pos.x, pos.y + 0.1f, pos.z);
+    rlScalef(beltLength/3.5, 1, 1);
+    DrawModel(conveyorModel, (Vector3){0,0,0}, 1.0f, WHITE);
+    rlPopMatrix();
+
+}
+
+void DrawDoor(Vector3 pos, float rotY)
+{
+    rlPushMatrix();
+        rlTranslatef(pos.x, pos.y, pos.z);
+        rlRotatef(rotY, 0, 1, 0);
+        rlRotatef(180, 0, 0, 1);
+        rlScalef(0.5f, 0.5f, 1);
+        DrawModel(doorModel, (Vector3){0,0,0}, 1.0f, WHITE);
+    rlPopMatrix();
+}
+
 void DrawTowel(Vector3 towelPos)
 {
     Color AIR = { 255, 255, 255, 0 };
@@ -359,9 +563,17 @@ DrawCube(
     1.0f, 2.0f, 0.05f,
     (Color){50, 50, 50, 255}   // dark neutral filler
 );
-
 }
 
+void DrawLightbulb(Vector3 pos, bool on)
+{
+    Color offColor = (Color){120, 120, 120, 255};   // gray
+    Color onColor  = (Color){255, 230, 120, 255};   // warm yellow
+
+    Color c = on ? onColor : offColor;
+
+    DrawCube(pos, 0.2f, 0.2f, 0.2f, c);
+}
 
 void DrawShower(Vector3 pos, Vector3 scale) {
     // -----------------------------
@@ -597,6 +809,21 @@ rlPopMatrix();
 DrawCube((Vector3){pos.x, pos.y, pos.z}, w/2, h/2, d/2, BROWN);
 }
 
+void DrawRedPuddle(Vector3 pos, float radius)
+{
+    float height = 0.01f; // always 0.01, your rule
+
+    // Raise it half the height so it sits ON the floor, not inside it
+    float y = pos.y + height * 0.5f;
+
+    DrawCylinder(
+        (Vector3){pos.x, y, pos.z},
+        radius, radius,
+        height,
+        16,
+        (Color){200, 20, 20, 200} // deep red
+    );
+}
 
 void DrawTubeJointRotatable(
    Vector3 jointPos,
@@ -992,87 +1219,7 @@ void DrawCustomGrid(int size, float spacing, Vector3 center, Color color)
    }
 }
 
-Mesh MergeMeshes(Mesh a, Mesh b)
-{
-   Mesh out = {0};
 
-   out.vertexCount   = a.vertexCount + b.vertexCount;
-   out.triangleCount = a.triangleCount + b.triangleCount;
-
-   out.vertices = (float*)MemAlloc(out.vertexCount * 3 * sizeof(float));
-   out.texcoords = (float*)MemAlloc(out.vertexCount * 2 * sizeof(float));
-   out.indices = (unsigned short*)MemAlloc(out.triangleCount * 3 * sizeof(unsigned short));
-
-   memcpy(out.vertices, a.vertices, a.vertexCount * 3 * sizeof(float));
-   memcpy(out.texcoords, a.texcoords, a.vertexCount * 2 * sizeof(float));
-   memcpy(out.indices, a.indices, a.triangleCount * 3 * sizeof(unsigned short));
-
-   // Offset b’s indices
-   for (int i = 0; i < b.triangleCount * 3; i++)
-       out.indices[a.triangleCount * 3 + i] = b.indices[i] + a.vertexCount;
-
-   // Append b’s vertices + UVs
-   memcpy(out.vertices + a.vertexCount * 3, b.vertices, b.vertexCount * 3 * sizeof(float));
-   memcpy(out.texcoords + a.vertexCount * 2, b.texcoords, b.vertexCount * 2 * sizeof(float));
-
-   UploadMesh(&out, false);
-   return out;
-}
-
-Mesh GenTrap(float bw, float tw, float h, float bd, float td)
-{
-   Mesh m = {0};
-   m.vertexCount = 8;
-   m.triangleCount = 12;
-
-   m.vertices = (float*)MemAlloc(8*3*sizeof(float));
-   m.texcoords = (float*)MemAlloc(8*2*sizeof(float));
-   m.indices = (unsigned short*)MemAlloc(12*3*sizeof(unsigned short));
-
-   float hb = bw/2, ht = tw/2;
-   float hbd = bd/2, htd = td/2;
-
-   float v[24] = {
-   // bottom (rotated)
-   -hb, -hbd, 0,
-    hb, -hbd, 0,
-    hb,  hbd, 0,
-   -hb,  hbd, 0,
-
-   // top (rotated)
-   -ht, -htd, -h,
-    ht, -htd, -h,
-    ht,  htd, -h,
-   -ht,  htd, -h
-};
-
-   memcpy(m.vertices, v, sizeof(v));
-
-   float uv[16] = {
-       0,0, 1,0, 1,1, 0,1,
-       0,0, 1,0, 1,1, 0,1
-   };
-   memcpy(m.texcoords, uv, sizeof(uv));
-
-   unsigned short ind[36] = {
-   // bottom
-   0,1,2,  0,2,3,
-
-   // top
-   4,6,5,  4,7,6,
-
-   // sides
-   0,4,5,  0,5,1,
-   1,5,6,  1,6,2,
-   2,6,7,  2,7,3,
-   3,7,4,  3,4,0
-   };
-
-   memcpy(m.indices, ind, sizeof(ind));
-
-   UploadMesh(&m, false);
-   return m;
-}
 void DrawCornerDesk(Vector3 pos, float rot)
 {
    rlPushMatrix();
@@ -1670,6 +1817,137 @@ void DrawRoom4()
     WHITE);
    
 rlPopMatrix();
+}
+// -----------------------------------------------------------
+// HALLWAY
+// -----------------------------------------------------------
+void DrawPlusHallway()
+{
+    // -----------------------------
+    // Load cube model once
+    // -----------------------------
+    static Model wallCubeModel;
+    static bool initialized = false;
+
+    if (!initialized)
+    {
+        Mesh cubeMesh = GenMeshCube(1.0f, 1.0f, 1.0f);
+        wallCubeModel = LoadModelFromMesh(cubeMesh);
+        wallCubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
+        initialized = true;
+    }
+
+    // -----------------------------
+    // Position of the entire hallway
+    // -----------------------------
+    Vector3 base = { -5.0f, 0.0f, 10.0f };
+
+    // -----------------------------
+    // Dimensions
+    // -----------------------------
+    float h = 2.5f;   // wall height
+    float w = 2.0f;   // hallway width
+    float L = 4.0f;   // length of each arm
+
+    // -----------------------------
+    // FLOOR (cross shape)
+    // -----------------------------
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){ base.x, base.y + 0.001f, base.z },
+        (Vector3){1,0,0}, 0,
+        (Vector3){ w, 0.1f, L },
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){ base.x, base.y, base.z },
+        (Vector3){1,0,0}, 0,
+        (Vector3){ L, 0.1f, w },
+        WHITE
+    );
+
+    // -----------------------------
+    // CEILING
+    // -----------------------------
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){ base.x, base.y + h + 0.001f, base.z },
+        (Vector3){1,0,0}, 0,
+        (Vector3){ w, 0.1f, L },
+        WHITE
+    );
+
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){ base.x, base.y + h, base.z },
+        (Vector3){1,0,0}, 0,
+        (Vector3){ L, 0.1f, w },
+        WHITE
+    );
+
+    // -----------------------------
+    // WALLS
+    // -----------------------------
+
+    // North
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){ base.x, base.y + h/2, base.z - L/2 },
+        (Vector3){0,1,0}, 0,
+        (Vector3){ w, h, 0.1f },
+        WHITE
+    );
+
+    // South
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){ base.x, base.y + h/2, base.z + L/2 },
+        (Vector3){0,1,0}, 0,
+        (Vector3){ w, h, 0.1f },
+        WHITE
+    );
+
+    // East
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){ base.x + L/2, base.y + h/2, base.z },
+        (Vector3){0,1,0}, 0,
+        (Vector3){ 0.1f, h, w },
+        WHITE
+    );
+
+    // West
+    DrawModelEx(
+        wallCubeModel,
+        (Vector3){ base.x - L/2, base.y + h/2, base.z },
+        (Vector3){0,1,0}, 0,
+        (Vector3){ 0.1f, h, w },
+        WHITE
+    );
+
+    // -----------------------------
+    // WALLS — FULL + SHAPE
+    // -----------------------------
+    float center = 2.0f;   // 2×2 center
+    float arm = 1.0f;      // 1 unit extension
+
+    // North arm side walls
+    DrawModelEx(wallCubeModel, (Vector3){base.x - center/2, base.y + h/2, base.z - (center/2 + arm/2)}, (Vector3){0,1,0}, 0, (Vector3){0.1f, h, arm}, WHITE);
+    DrawModelEx(wallCubeModel, (Vector3){base.x + center/2, base.y + h/2, base.z - (center/2 + arm/2)}, (Vector3){0,1,0}, 0, (Vector3){0.1f, h, arm}, WHITE);
+
+    // South arm side walls
+    DrawModelEx(wallCubeModel, (Vector3){base.x - center/2, base.y + h/2, base.z + (center/2 + arm/2)}, (Vector3){0,1,0}, 0, (Vector3){0.1f, h, arm}, WHITE);
+    DrawModelEx(wallCubeModel, (Vector3){base.x + center/2, base.y + h/2, base.z + (center/2 + arm/2)}, (Vector3){0,1,0}, 0, (Vector3){0.1f, h, arm}, WHITE);
+
+    // East arm side walls
+    DrawModelEx(wallCubeModel, (Vector3){base.x + (center/2 + arm/2), base.y + h/2, base.z - center/2}, (Vector3){0,1,0}, 0, (Vector3){arm, h, 0.1f}, WHITE);
+    DrawModelEx(wallCubeModel, (Vector3){base.x + (center/2 + arm/2), base.y + h/2, base.z + center/2}, (Vector3){0,1,0}, 0, (Vector3){arm, h, 0.1f}, WHITE);
+
+    // West arm side walls
+    DrawModelEx(wallCubeModel, (Vector3){base.x - (center/2 + arm/2), base.y + h/2, base.z - center/2}, (Vector3){0,1,0}, 0, (Vector3){arm, h, 0.1f}, WHITE);
+    DrawModelEx(wallCubeModel, (Vector3){base.x - (center/2 + arm/2), base.y + h/2, base.z + center/2}, (Vector3){0,1,0}, 0, (Vector3){arm, h, 0.1f}, WHITE);
 
 }
 // ------------------------------------------------------------
@@ -1677,6 +1955,10 @@ rlPopMatrix();
 // ------------------------------------------------------------
 int main(void)
 {
+    SetTraceLogLevel(LOG_NONE);
+    srand((time(NULL))); 
+    float rot = rand() % 360; // global
+
     InitWindow(1280, 720, "Cafeteria for What Lives Below");
 
     float fogSize = 100.0f;   // or whatever size you want
@@ -1685,6 +1967,7 @@ int main(void)
 // ------------------------------------------------------------
 // GENERATE PROCEDURAL TEXTURES
 // ------------------------------------------------------------
+initall();
 //early load textures so we can use them in our procedural materials
 texDesk = LoadTexture("textures/TableTex.png");
 // -----------------------------
@@ -1924,7 +2207,6 @@ UnloadImage(fabricImg);
 
     InitCabinetTest();
 
-    initall();
 
     while (!IsKeyPressed(KEY_ESCAPE))
     {
@@ -1939,6 +2221,7 @@ UnloadImage(fabricImg);
         },
         0.0f
     );*/
+    
 
         BeginDrawing();
         ClearBackground(RAYWHITE);
@@ -2005,13 +2288,14 @@ UnloadImage(fabricImg);
         rlPopMatrix();
 
 
-
+bool light = false;
 UpdateSmoke(GetFrameTime());
 UpdateDrips(GetFrameTime());
 UpdateDripsW(GetFrameTime()/2);
 //if (GeneratorActive)   
 //{  
 DrawSmoke3D();
+light = true;
 //continue;
 //}
 DrawGenerator();
@@ -2071,8 +2355,42 @@ DrawDripsW();
         rlScalef(0.5, 0.75, 0.5);
         DrawDesk();
         rlPopMatrix();
-        
+        DrawPaper((Vector3){-0.54f, 0.83f, 10.0f}, 45.0f, 1.0f);
+        DrawBioHazardBox((Vector3){5.0f, 1.05f, 10}, (Vector3){1, 1, 1});
+        DrawRedPuddle((Vector3){5.0f, 0.8125f, 10}, 0.35f);
+        rlPushMatrix();
+        rlTranslatef(0, 0.1f, 0);
+        DrawRedPuddle((Vector3){3.79f, 0.0f, 8.75f}, 0.5f);
+        DrawPaper((Vector3){-1.31f, 0.01f, 8.85f}, 0.0f, 1.0f);
+        DrawPaper((Vector3){-0.54f, 0.0f, 10.0f}, 30.0f, 1.0f);
+        DrawPaper((Vector3){0.0f, 0.0f, 10}, rot, 1.0f);
+        DrawPaper((Vector3){0.54f, 0.0f, 10.0f}, -30.0f, 1.0f);
+        DrawPaper((Vector3){0.84f, 0.0f, 10.0f}, -45.0f, 1.0f);
+        rlPopMatrix();
+        for (float y = 1.1f; y <= 1.4f; y += 0.01f)
+        {
+            DrawPaper((Vector3){0.0f, y + 0.2f, 10}, rot, 1.0f);
+        }
 
+        rlPushMatrix();
+        rlTranslatef(10, 0.6f, 10);
+        rlRotatef(45.0f, 0, 0, 1);
+        DrawConveyor((Vector3){0, 0, 0}, 1.0f);
+        rlPopMatrix();
+        DrawCube((Vector3){9.5, 0, 10}, 1, 0, 1, BLACK);
+        DrawConveyor((Vector3){11, 1, 10}, 2);
+        rlPushMatrix();
+        rlTranslatef(11, 1.8, 9);
+        rlRotatef(45, 1, 0, 0);
+        rlRotatef(90, 0, 1, 0);
+        DrawConveyor((Vector3){0, 0, 0}, 1);
+        rlPopMatrix();
+        DrawLightbulb((Vector3){10, 2.5f, 10}, light);
+
+        DrawDoor((Vector3){-6.5, 0.5, 9.01f}, 0);
+        DrawDoor((Vector3){-3.5, 0.5, 9.01f}, 0);
+        DrawDoor((Vector3){-6.5, 0.5, 10.99f}, 0);
+        DrawDoor((Vector3){-3.5, 0.5, 10.99f}, 0);
 
         DrawDesk();
         DrawFloorOffice(0.0f, 2.5f, 0.0f);
@@ -2086,7 +2404,6 @@ DrawDripsW();
         DrawBox((Vector3){1.75f, 0.25f, -1.75f}, (Vector3){0, 0, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKGRAY);
         DrawBox((Vector3){-1.75f, 0.25f, 1.75f}, (Vector3){0, 0, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKGRAY);
         DrawBox((Vector3){-1.75f, 0.25f, -1.75f}, (Vector3){0, 0, 0}, (Vector3){0.5f, 0.5f, 0.5f}, DARKGRAY);
-
         // ALL PAPERS SHIFTED BY +5 ON X
         DrawPaper((Vector3){0.0f, 1.1f, 0.0f}, 45.0f, 1.0f);
         DrawPaper((Vector3){-0.5f, 0.1f, 0.5f}, -30.0f, 0.8f);
@@ -2104,10 +2421,18 @@ DrawDripsW();
         DrawPaper((Vector3){0.0f, 0.1f, -2.0f}, 45.0f, 0.8f);
         DrawPaper((Vector3){0.0f, 0.1f, 2.0f}, -45.0f, 0.8f);
         DrawPaper((Vector3){2.0f, 0.1f, 0.0f}, -60.0f, 0.8f);
-
         // Paper stack
         for (float y = 1.1f; y <= 1.4f; y += 0.01f)
             DrawPaper((Vector3){-0.3f, y, -0.01f}, 15.0f, 0.8f);
+
+
+        rlPushMatrix();
+            rlTranslatef(0, 12, 0);
+            rlRotatef(180, 0, 0, 1);
+            DrawModel(bootModel, (Vector3){0,0,0}, 1.0f, GRAY);
+        rlPopMatrix();
+
+
 
         DrawRoom();
         DrawRoom2();
@@ -2133,6 +2458,15 @@ DrawDripsW();
             rlTranslatef(0, 0, 5);
             DrawRoom3();
         rlPopMatrix();
+        rlPushMatrix();
+            rlTranslatef(0, 0, 10);
+            DrawRoom2();
+        rlPopMatrix();
+        rlPushMatrix();
+            rlTranslatef(10, 0, 10);
+            DrawRoom();
+        rlPopMatrix();
+        DrawPlusHallway();
         DrawCentralBlock(DARKGRAY, GRAY, wallcolor, cubeModel, cubeModelUp, cubeModelDown);
 
         // -------------------------------
