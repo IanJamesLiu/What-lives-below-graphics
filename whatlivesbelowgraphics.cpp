@@ -65,126 +65,10 @@ Model conveyorModel;
 Model doorModel;
 Model bootModel;
 Model helmetModel;
+Model hatchet;
 
-Mesh MergeMeshes(Mesh a, Mesh b)
-{
-   Mesh out = {0};
 
-   out.vertexCount   = a.vertexCount + b.vertexCount;
-   out.triangleCount = a.triangleCount + b.triangleCount;
 
-   out.vertices = (float*)MemAlloc(out.vertexCount * 3 * sizeof(float));
-   out.texcoords = (float*)MemAlloc(out.vertexCount * 2 * sizeof(float));
-   out.indices = (unsigned short*)MemAlloc(out.triangleCount * 3 * sizeof(unsigned short));
-
-   memcpy(out.vertices, a.vertices, a.vertexCount * 3 * sizeof(float));
-   memcpy(out.texcoords, a.texcoords, a.vertexCount * 2 * sizeof(float));
-   memcpy(out.indices, a.indices, a.triangleCount * 3 * sizeof(unsigned short));
-
-   // Offset b’s indices
-   for (int i = 0; i < b.triangleCount * 3; i++)
-       out.indices[a.triangleCount * 3 + i] = b.indices[i] + a.vertexCount;
-
-   // Append b’s vertices + UVs
-   memcpy(out.vertices + a.vertexCount * 3, b.vertices, b.vertexCount * 3 * sizeof(float));
-   memcpy(out.texcoords + a.vertexCount * 2, b.texcoords, b.vertexCount * 2 * sizeof(float));
-
-   UploadMesh(&out, false);
-   return out;
-}
-
-Mesh GenTrap(float bw, float tw, float h, float bd, float td)
-{
-   Mesh m = {0};
-   m.vertexCount = 8;
-   m.triangleCount = 12;
-
-   m.vertices = (float*)MemAlloc(8*3*sizeof(float));
-   m.texcoords = (float*)MemAlloc(8*2*sizeof(float));
-   m.indices = (unsigned short*)MemAlloc(12*3*sizeof(unsigned short));
-
-   float hb = bw/2, ht = tw/2;
-   float hbd = bd/2, htd = td/2;
-
-   float v[24] = {
-   // bottom (rotated)
-   -hb, -hbd, 0,
-    hb, -hbd, 0,
-    hb,  hbd, 0,
-   -hb,  hbd, 0,
-
-   // top (rotated)
-   -ht, -htd, -h,
-    ht, -htd, -h,
-    ht,  htd, -h,
-   -ht,  htd, -h
-};
-
-   memcpy(m.vertices, v, sizeof(v));
-
-   float uv[16] = {
-       0,0, 1,0, 1,1, 0,1,
-       0,0, 1,0, 1,1, 0,1
-   };
-   memcpy(m.texcoords, uv, sizeof(uv));
-
-   unsigned short ind[36] = {
-   // bottom
-   0,1,2,  0,2,3,
-
-   // top
-   4,6,5,  4,7,6,
-
-   // sides
-   0,4,5,  0,5,1,
-   1,5,6,  1,6,2,
-   2,6,7,  2,7,3,
-   3,7,4,  3,4,0
-   };
-
-   memcpy(m.indices, ind, sizeof(ind));
-
-   UploadMesh(&m, false);
-   return m;
-}
-
-Mesh GenBoot()
-{
-    // Foot section
-    Mesh foot = GenTrap(
-        1.0f, 0.8f,   // bottom width, top width
-        0.4f,         // height
-        0.5f, 0.4f    // bottom depth, top depth
-    );
-
-    // Ankle section
-    Mesh ankle = GenTrap(
-        0.6f, 0.6f,
-        0.8f,
-        0.5f, 0.5f
-    );
-
-    // Move ankle upward
-    for (int i = 0; i < ankle.vertexCount; i++)
-        ankle.vertices[i*3 + 1] += 0.4f;
-
-    // Heel block
-    Mesh heel = GenTrap(
-        0.4f, 0.4f,
-        0.3f,
-        0.4f, 0.4f
-    );
-
-    // Move heel backward
-    for (int i = 0; i < heel.vertexCount; i++)
-        heel.vertices[i*3 + 2] += 0.2f;
-
-    // Merge all parts
-    Mesh boot = MergeMeshes(foot, ankle);
-    boot = MergeMeshes(boot, heel);
-
-    return boot;
-}
 
 struct DripW {
     Vector3 pos;
@@ -386,6 +270,8 @@ void DrawHalfSphereUpper(Vector3 pos, float radius, Color color)
 }
 void initall(void)
 {
+    texWall = LoadTexture("textures/TexWall.png");
+
     doorTex = LoadTexture("textures/door.png");
 
     float doorW = 0.55f;   // matches your horizontal rectangle
@@ -434,13 +320,15 @@ void initall(void)
    screenModel = LoadModelFromMesh(screenMesh);
    screenModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall; // placeholder
 
+   texStatic = LoadTexture("textures/Static.png");
+
    Mesh staticMesh = GenMeshCube(0.40f, 0.30f, 0.0f);
    staticModel = LoadModelFromMesh(staticMesh);
    staticModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texStatic;
       // --- STAND ---
    Mesh standMesh = GenMeshCube(0.10f, 0.20f, 0.10f);
    standModel = LoadModelFromMesh(standMesh);
-   standModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texMetal;
+   standModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
 
     float seatW = 0.45f;
     float seatH = 0.05f;
@@ -453,9 +341,9 @@ void initall(void)
     float backT = 0.05f;
     
     Image fabricImg = GenImagePerlinNoise(64, 64, 0, 0, 8.0f);
-ImageColorTint(&fabricImg, (Color){120, 120, 130, 255});
-texFabric = LoadTextureFromImage(fabricImg);
-UnloadImage(fabricImg);
+    ImageColorTint(&fabricImg, (Color){120, 120, 130, 255});
+    texFabric = LoadTextureFromImage(fabricImg);
+    UnloadImage(fabricImg);
 
 
     Color seatColor = (Color){120, 70, 50, 255};
@@ -468,9 +356,7 @@ UnloadImage(fabricImg);
     backModel = LoadModelFromMesh(backMesh);
     backModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texFabric;
 
-    Mesh bootMesh = GenBoot();
-    bootModel = LoadModelFromMesh(bootMesh);
-
+    hatchet = LoadModel("textures/Hatchet.glb");
 }
 
 void DrawConveyor(Vector3 pos, float beltLength)
@@ -1265,6 +1151,88 @@ void DrawBox(Vector3 pos, Vector3 rotDeg, Vector3 size, Color tint)
    rlPopMatrix();
 }
 
+Mesh MergeMeshes(Mesh a, Mesh b)
+{
+   Mesh out = {0};
+
+   out.vertexCount   = a.vertexCount + b.vertexCount;
+   out.triangleCount = a.triangleCount + b.triangleCount;
+
+   out.vertices = (float*)MemAlloc(out.vertexCount * 3 * sizeof(float));
+   out.texcoords = (float*)MemAlloc(out.vertexCount * 2 * sizeof(float));
+   out.indices = (unsigned short*)MemAlloc(out.triangleCount * 3 * sizeof(unsigned short));
+
+   memcpy(out.vertices, a.vertices, a.vertexCount * 3 * sizeof(float));
+   memcpy(out.texcoords, a.texcoords, a.vertexCount * 2 * sizeof(float));
+   memcpy(out.indices, a.indices, a.triangleCount * 3 * sizeof(unsigned short));
+
+   // Offset b’s indices
+   for (int i = 0; i < b.triangleCount * 3; i++)
+       out.indices[a.triangleCount * 3 + i] = b.indices[i] + a.vertexCount;
+
+   // Append b’s vertices + UVs
+   memcpy(out.vertices + a.vertexCount * 3, b.vertices, b.vertexCount * 3 * sizeof(float));
+   memcpy(out.texcoords + a.vertexCount * 2, b.texcoords, b.vertexCount * 2 * sizeof(float));
+
+   UploadMesh(&out, false);
+   return out;
+}
+
+Mesh GenTrap(float bw, float tw, float h, float bd, float td)
+{
+   Mesh m = {0};
+   m.vertexCount = 8;
+   m.triangleCount = 12;
+
+   m.vertices = (float*)MemAlloc(8*3*sizeof(float));
+   m.texcoords = (float*)MemAlloc(8*2*sizeof(float));
+   m.indices = (unsigned short*)MemAlloc(12*3*sizeof(unsigned short));
+
+   float hb = bw/2, ht = tw/2;
+   float hbd = bd/2, htd = td/2;
+
+   float v[24] = {
+   // bottom (rotated)
+   -hb, -hbd, 0,
+    hb, -hbd, 0,
+    hb,  hbd, 0,
+   -hb,  hbd, 0,
+
+   // top (rotated)
+   -ht, -htd, -h,
+    ht, -htd, -h,
+    ht,  htd, -h,
+   -ht,  htd, -h
+};
+
+   memcpy(m.vertices, v, sizeof(v));
+
+   float uv[16] = {
+       0,0, 1,0, 1,1, 0,1,
+       0,0, 1,0, 1,1, 0,1
+   };
+   memcpy(m.texcoords, uv, sizeof(uv));
+
+   unsigned short ind[36] = {
+   // bottom
+   0,1,2,  0,2,3,
+
+   // top
+   4,6,5,  4,7,6,
+
+   // sides
+   0,4,5,  0,5,1,
+   1,5,6,  1,6,2,
+   2,6,7,  2,7,3,
+   3,7,4,  3,4,0
+   };
+
+   memcpy(m.indices, ind, sizeof(ind));
+
+   UploadMesh(&m, false);
+   return m;
+}
+
 // The computer
 void DrawComputer(Vector3 pos, float scale, float rotation)
 {
@@ -1365,6 +1333,61 @@ void DrawCabinetTest(void)
                   WHITE);
     }
 }
+void DrawAxeTool(Vector3 pos, float scale)
+{
+    rlPushMatrix();
+    rlTranslatef(pos.x, pos.y, pos.z);
+    rlScalef(scale, scale, scale);
+
+    // ----------------------------------------------------
+    // HANDLE (chunky, stylized)
+    // ----------------------------------------------------
+    DrawCylinder(
+        (Vector3){0, 0.40f, 0},
+        0.06f, 0.06f,     // radius
+        0.8f,             // height
+        14,
+        (Color){160, 130, 90, 255}   // warm wood tone
+    );
+
+    // ----------------------------------------------------
+    // BLADE BASE BLOCK (gives thickness)
+    // ----------------------------------------------------
+    rlPushMatrix();
+        rlTranslatef(0.25f, 0.75f, 0);
+        rlRotatef(90, 0, 1, 0);
+
+        DrawCube(
+            (Vector3){0, 0, 0},
+            0.30f,   // width
+            0.25f,   // height
+            0.12f,   // depth
+            (Color){190, 190, 200, 255}
+        );
+    rlPopMatrix();
+
+    // ----------------------------------------------------
+    // TRIANGULAR BLADE EDGE (stylized, tree‑cutting shape)
+    // ----------------------------------------------------
+    rlPushMatrix();
+        rlTranslatef(0.25f, 0.75f, 0);
+        rlRotatef(90, 0, 1, 0);
+
+        // Triangle points (simple wedge)
+        Vector3 top    = { 0.15f,  0.10f, 0.0f };
+        Vector3 bottom = { 0.15f, -0.10f, 0.0f };
+        Vector3 tip    = { 0.32f,  0.00f, 0.0f };
+
+        Color bladeColor = (Color){220, 220, 230, 255};
+
+        DrawTriangle3D(top, bottom, tip, bladeColor);
+    rlPopMatrix();
+
+    rlPopMatrix();
+}
+
+
+
 //a nice centerpiece, the desk
 void DrawDesk(void)
 {
@@ -2060,7 +2083,6 @@ deskModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].color = (Color){120, 70, 50, 2
 
 // Load your PNG
 TexTableNoise = LoadTexture("textures/TableTop.png");
-texWall = LoadTexture("textures/TexWall.png");
 Texture2D TexWallUpHalf = LoadTexture("textures/TexWallUpHalf.png");
 Texture2D TexWallDownHalf = LoadTexture("textures/TexWalldownhalf.png");
 texComp = LoadTexture("textures/texComp.png");
@@ -2425,11 +2447,11 @@ DrawDripsW();
         for (float y = 1.1f; y <= 1.4f; y += 0.01f)
             DrawPaper((Vector3){-0.3f, y, -0.01f}, 15.0f, 0.8f);
 
-
+        DrawAxeTool((Vector3){0, 0, -5}, 1);
         rlPushMatrix();
-            rlTranslatef(0, 12, 0);
-            rlRotatef(180, 0, 0, 1);
-            DrawModel(bootModel, (Vector3){0,0,0}, 1.0f, GRAY);
+        rlTranslatef(0, -5, 0);
+        rlRotatef(30, 0, 0, 1);
+        DrawModel(hatchet, (Vector3){0,0,0}, 0.15f, BROWN);
         rlPopMatrix();
 
 
