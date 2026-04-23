@@ -1,6 +1,8 @@
 #include "raylib.h"
 #include "rlgl.h"
 #include "rlights.h"
+#include "raymath.h"
+#include "raymath.h"
 #include "math.h"
 #include <cstring>
 #include <ctime>
@@ -19,6 +21,7 @@ Color metalDirty = { 58, 58, 63, 255 };
 Color blueprint = { 0, 255, 255, 12 };
 Color fogColor = { 18, 18, 20, 2 };   // pale dusty fog
 // Global textures (initialized in main)
+Texture2D woodTex;
 Texture2D texWall;
 Texture2D texRust;
 Texture2D texMetal;
@@ -66,8 +69,9 @@ Model doorModel;
 Model bootModel;
 Model helmetModel;
 Model hatchet;
-
-
+Model Gun;
+Model Gun2;
+Model handleModel;
 
 
 struct DripW {
@@ -270,7 +274,58 @@ void DrawHalfSphereUpper(Vector3 pos, float radius, Color color)
 }
 void initall(void)
 {
+Image noise = GenImagePerlinNoise(256, 256, 0, 0, 8.0f);
+
+for (int y = 0; y < noise.height; y++)
+{
+    float rowNoise = (rand() % 1000) / 1000.0f;  // 0–1
+    rowNoise = (rowNoise - 0.5f) * 0.1f;         // -0.05 to +0.05
+    for (int x = 0; x < noise.width; x++)
+    {
+        Color c = GetImageColor(noise, x, y);
+
+        float fx = (float)x / noise.width;
+        float fy = (float)y / noise.height;
+
+        // Base Perlin noise (0–1)
+        float n = c.r / 255.0f;
+
+        // Distance from center
+        float dx = fx - 0.5f;
+        float dy = fy - 0.5f+rowNoise;
+        float dist = sqrtf(dx*dx + dy*dy);
+
+        // Add wobble to the rings
+        float wobble = n * 0.15f;      // 0.1–0.2 looks natural
+        dist += wobble;
+
+        // Ring frequency
+        float ring = sinf(dist * 50.0f);  // 40–60 is good
+
+        // Normalize ring to 0–1
+        ring = ring * 0.5f + 0.5f;
+
+        // Mix noise + rings
+        float wood = n * 0.5f + ring * 0.5f;
+
+        // Convert to color
+        unsigned char r = (unsigned char)(wood * 165);
+        unsigned char g = (unsigned char)(wood * 100);
+        unsigned char b = (unsigned char)(wood * 70);
+
+        ImageDrawPixel(&noise, x, y, (Color){r, g, b, 255});
+    }
+}
+    Texture2D woodTex = LoadTextureFromImage(noise);
+    UnloadImage(noise);
+
     texWall = LoadTexture("textures/TexWall.png");
+
+    Gun = LoadModel("textures/Revolver.glb");
+    Gun.transform = MatrixRotateZ(100);
+
+    Gun2 = LoadModel("textures/Musket.glb");
+    Gun2.transform = MatrixRotateZ(100);
 
     doorTex = LoadTexture("textures/door.png");
 
@@ -300,35 +355,35 @@ void initall(void)
     lockerDoorModel = LoadModelFromMesh(m);
     lockerDoorModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = tex;
 
-   Image img = LoadImage("textures/biohazard.png");
-   ivStandTex = LoadTextureFromImage(img);
-   UnloadImage(img); // we only needed the flipped image for the texture, can free now
+    Image img = LoadImage("textures/biohazard.png");
+    ivStandTex = LoadTextureFromImage(img);
+    UnloadImage(img); // we only needed the flipped image for the texture, can free now
 
    
-   Mesh cubeMesh = GenMeshCube(0.125f, 0.125f, 0.0f);
-   cubeModel = LoadModelFromMesh(cubeMesh);
-   cubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = ivStandTex;
+    Mesh cubeMesh = GenMeshCube(0.125f, 0.125f, 0.0f);
+    cubeModel = LoadModelFromMesh(cubeMesh);
+    cubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = ivStandTex;
 
-   pullstartTex = LoadTexture("textures/pullstart.png");
+    pullstartTex = LoadTexture("textures/pullstart.png");
 
-   Mesh mm = GenMeshCylinder(0.45f, 0.12f, 32);
-   pullstartModel = LoadModelFromMesh(mm);
-   pullstartModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = pullstartTex;
+    Mesh mm = GenMeshCylinder(0.45f, 0.12f, 32);
+    pullstartModel = LoadModelFromMesh(mm);
+    pullstartModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = pullstartTex;
 
-   // --- SCREEN ---
-   Mesh screenMesh = GenMeshCube(0.40f, 0.30f, 0.02f);
-   screenModel = LoadModelFromMesh(screenMesh);
-   screenModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall; // placeholder
+    // --- SCREEN ---
+    Mesh screenMesh = GenMeshCube(0.40f, 0.30f, 0.02f);
+    screenModel = LoadModelFromMesh(screenMesh);
+    screenModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall; // placeholder
 
-   texStatic = LoadTexture("textures/Static.png");
+    texStatic = LoadTexture("textures/Static.png");
 
-   Mesh staticMesh = GenMeshCube(0.40f, 0.30f, 0.0f);
-   staticModel = LoadModelFromMesh(staticMesh);
-   staticModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texStatic;
+    Mesh staticMesh = GenMeshCube(0.40f, 0.30f, 0.0f);
+    staticModel = LoadModelFromMesh(staticMesh);
+    staticModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texStatic;
       // --- STAND ---
-   Mesh standMesh = GenMeshCube(0.10f, 0.20f, 0.10f);
-   standModel = LoadModelFromMesh(standMesh);
-   standModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
+    Mesh standMesh = GenMeshCube(0.10f, 0.20f, 0.10f);
+    standModel = LoadModelFromMesh(standMesh);
+    standModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
 
     float seatW = 0.45f;
     float seatH = 0.05f;
@@ -356,9 +411,35 @@ void initall(void)
     backModel = LoadModelFromMesh(backMesh);
     backModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texFabric;
 
-    hatchet = LoadModel("textures/Hatchet.glb");
+    Mesh handleMesh = GenMeshCylinder(0.05f, 1.0f, 32);
+    handleModel = LoadModelFromMesh(handleMesh);
+    handleModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = woodTex;
 }
 
+void DrawAxe(Vector3 pos, int rotY)
+{
+
+rlPushMatrix();
+    rlTranslatef(pos.x, pos.y, pos.z);
+    rlRotatef(0, 0, 1, 0);
+    DrawModel(handleModel, (Vector3){0,0,0}, 1.0f, WHITE);
+rlPopMatrix();
+
+
+
+
+    rlPushMatrix();
+        rlTranslatef(pos.x, pos.y + 0.75, pos.z - 0.23);
+        rlScalef(0.0f, 1.0f, 1.0f);
+        rlRotatef(90, 1, 0, 0);
+        DrawCylinder((Vector3){0,0,0}, 0.0f, 0.25f, 0.5f, 16, GRAY);
+    rlPopMatrix();
+        rlPushMatrix();
+        rlTranslatef(pos.x, pos.y + 0.75, pos.z - 0.27);
+        rlRotatef(90, 0, 0, 1);
+        DrawCylinder((Vector3){0, 0, 0}, 0.0f, 0.25, 0, 16, GRAY);
+    rlPopMatrix();
+}
 void DrawConveyor(Vector3 pos, float beltLength)
 {
     float beltWidth  = 1.0f;
@@ -1333,58 +1414,7 @@ void DrawCabinetTest(void)
                   WHITE);
     }
 }
-void DrawAxeTool(Vector3 pos, float scale)
-{
-    rlPushMatrix();
-    rlTranslatef(pos.x, pos.y, pos.z);
-    rlScalef(scale, scale, scale);
 
-    // ----------------------------------------------------
-    // HANDLE (chunky, stylized)
-    // ----------------------------------------------------
-    DrawCylinder(
-        (Vector3){0, 0.40f, 0},
-        0.06f, 0.06f,     // radius
-        0.8f,             // height
-        14,
-        (Color){160, 130, 90, 255}   // warm wood tone
-    );
-
-    // ----------------------------------------------------
-    // BLADE BASE BLOCK (gives thickness)
-    // ----------------------------------------------------
-    rlPushMatrix();
-        rlTranslatef(0.25f, 0.75f, 0);
-        rlRotatef(90, 0, 1, 0);
-
-        DrawCube(
-            (Vector3){0, 0, 0},
-            0.30f,   // width
-            0.25f,   // height
-            0.12f,   // depth
-            (Color){190, 190, 200, 255}
-        );
-    rlPopMatrix();
-
-    // ----------------------------------------------------
-    // TRIANGULAR BLADE EDGE (stylized, tree‑cutting shape)
-    // ----------------------------------------------------
-    rlPushMatrix();
-        rlTranslatef(0.25f, 0.75f, 0);
-        rlRotatef(90, 0, 1, 0);
-
-        // Triangle points (simple wedge)
-        Vector3 top    = { 0.15f,  0.10f, 0.0f };
-        Vector3 bottom = { 0.15f, -0.10f, 0.0f };
-        Vector3 tip    = { 0.32f,  0.00f, 0.0f };
-
-        Color bladeColor = (Color){220, 220, 230, 255};
-
-        DrawTriangle3D(top, bottom, tip, bladeColor);
-    rlPopMatrix();
-
-    rlPopMatrix();
-}
 
 
 
@@ -2400,7 +2430,7 @@ DrawDripsW();
         DrawConveyor((Vector3){0, 0, 0}, 1.0f);
         rlPopMatrix();
         DrawCube((Vector3){9.5, 0, 10}, 1, 0, 1, BLACK);
-        DrawConveyor((Vector3){11, 1, 10}, 2);
+        DrawConveyor((Vector3){11, 1, 10}, 1.5);
         rlPushMatrix();
         rlTranslatef(11, 1.8, 9);
         rlRotatef(45, 1, 0, 0);
@@ -2447,12 +2477,27 @@ DrawDripsW();
         for (float y = 1.1f; y <= 1.4f; y += 0.01f)
             DrawPaper((Vector3){-0.3f, y, -0.01f}, 15.0f, 0.8f);
 
-        DrawAxeTool((Vector3){0, 0, -5}, 1);
         rlPushMatrix();
-        rlTranslatef(0, -5, 0);
-        rlRotatef(30, 0, 0, 1);
-        DrawModel(hatchet, (Vector3){0,0,0}, 0.15f, BROWN);
+        rlTranslatef(1.6f, 1.1f, -6.6f);
+        DrawModel(Gun, (Vector3){0, 0, 0}, 0.75, LIGHTGRAY);
         rlPopMatrix();
+        DrawModel(Gun2, (Vector3){1.6f, 1.1, -3.4f}, 0.75, LIGHTGRAY);
+        DrawModel(Gun, (Vector3){-1.6f, 1.1, -6.6f}, 0.75, LIGHTGRAY);
+        DrawModel(Gun2, (Vector3){-1.6f, 1.1, -3.4f}, 0.75, LIGHTGRAY);
+        rlPushMatrix();
+        rlTranslatef(0 ,1.125, -5);
+        rlRotatef(90, 0, 0, 1);
+        DrawAxe((Vector3){0, 0, 0}, 0);
+        rlPopMatrix();
+        DrawCube({0, 0.5, -5}, 2, 0.2f, 0.8f, DARKBROWN);
+        DrawCube({0, 1, -5}, 2, 0.2f, 0.8f, DARKBROWN);
+        DrawCube({0, 1.5, -5}, 2, 0.2f, 0.8f, DARKBROWN);
+        DrawCylinder({1, 0.0, -5}, 0.125, 0.125, 1.7, 16, GRAY);
+        DrawCylinder({-1, 0.0, -5}, 0.125, 0.125, 1.7, 16, GRAY);
+        DrawCube((Vector3){1.6f, 1, -3.4f}, 0.8f, 0.2f, 0.8f, DARKBROWN);
+        DrawCube((Vector3){1.6f, 1, -6.6f}, 0.8f, 0.2f, 0.8f, DARKBROWN);
+        DrawCube((Vector3){-1.6, 1, -3.4f}, 0.8f, 0.2f, 0.8f, DARKBROWN);
+        DrawCube((Vector3){-1.6f, 1, -6.6f}, 0.8f, 0.2f, 0.8f, DARKBROWN);
 
 
 
