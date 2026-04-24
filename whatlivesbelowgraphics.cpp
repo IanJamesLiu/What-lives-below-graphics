@@ -71,7 +71,11 @@ Model helmetModel;
 Model hatchet;
 Model Gun;
 Model Gun2;
+Model Gun3;
+Model Gun4;
 Model handleModel;
+Model Knife;
+Model Panel;
 
 
 struct DripW {
@@ -322,10 +326,26 @@ for (int y = 0; y < noise.height; y++)
     texWall = LoadTexture("textures/TexWall.png");
 
     Gun = LoadModel("textures/Revolver.glb");
-    Gun.transform = MatrixRotateZ(100);
+    Matrix rotZ = MatrixRotateZ(5 * DEG2RAD);
+    Matrix rotX = MatrixRotateX(60 * DEG2RAD);
+
+    Gun.transform = MatrixMultiply(rotX, rotZ);
+
 
     Gun2 = LoadModel("textures/Musket.glb");
-    Gun2.transform = MatrixRotateZ(100);
+    Matrix rotz2 = MatrixRotateZ(14 * DEG2RAD);
+    Matrix rotx2 = MatrixRotateX(89 * DEG2RAD);
+    Gun2.transform = MatrixMultiply(rotz2, rotx2);
+
+    Gun3 = Gun;
+    rotX = MatrixRotateX(-64 * DEG2RAD);
+    Matrix roty = MatrixRotateY(50 * DEG2RAD);
+    Gun3.transform = MatrixMultiply(MatrixMultiply(rotX, rotZ), roty);
+
+    Gun4 = Gun2;
+    rotx2 = MatrixRotateX(-89 * DEG2RAD);
+    Matrix roty2 = MatrixRotateY(37 * DEG2RAD);
+    Gun2.transform = MatrixMultiply(MatrixMultiply(rotz2, rotx2), roty2);
 
     doorTex = LoadTexture("textures/door.png");
 
@@ -414,6 +434,19 @@ for (int y = 0; y < noise.height; y++)
     Mesh handleMesh = GenMeshCylinder(0.05f, 1.0f, 32);
     handleModel = LoadModelFromMesh(handleMesh);
     handleModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = woodTex;
+}
+
+void DrawControlTable(Vector3 pos)
+{
+    // Main block (table body)
+    DrawCube((Vector3){pos.x, pos.y + 0.6f, pos.z},
+             2.0f, 1.0f, 1.0f,
+             (Color){70, 70, 75, 255});
+
+    // Top panel (slightly raised)
+    DrawCube((Vector3){pos.x, pos.y + 1.1f, pos.z},
+             2.1f, 0.1f, 1.1f,
+             (Color){90, 90, 95, 255});
 }
 
 void DrawAxe(Vector3 pos, int rotY)
@@ -1343,7 +1376,10 @@ void DrawComputer(Vector3 pos, float scale, float rotation)
     rlPopMatrix();
 }
 
-
+void DrawButton(float pox, float poy, float poz, Color c)
+{
+    DrawCube((Vector3){pox, poy, poz}, 0.1, 0.1, 0.1, c);
+}
 
 Vector3 ForwardFromCamera(Camera3D cam)
 {
@@ -2234,7 +2270,7 @@ UnloadImage(fabricImg);
     0.05f,   // height
     0.4f,   // bottom depth
     0.2f    // top depth
-);
+    );
 
     trapModel = LoadModelFromMesh(trapMesh);
     trapModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texComp;
@@ -2272,7 +2308,7 @@ UnloadImage(fabricImg);
         0.0f                          // roll
         },
         0.0f
-    );*/
+        );*/
     
 
         BeginDrawing();
@@ -2340,19 +2376,19 @@ UnloadImage(fabricImg);
         rlPopMatrix();
 
 
-bool light = false;
-UpdateSmoke(GetFrameTime());
-UpdateDrips(GetFrameTime());
-UpdateDripsW(GetFrameTime()/2);
-//if (GeneratorActive)   
-//{  
-DrawSmoke3D();
-light = true;
-//continue;
-//}
-DrawGenerator();
+    bool light = false;
+    UpdateSmoke(GetFrameTime());
+    UpdateDrips(GetFrameTime());
+    UpdateDripsW(GetFrameTime()/2);
+    //if (GeneratorActive)   
+    //{  
+    DrawSmoke3D();
+    light = true;
+    //continue;
+    //}
+    DrawGenerator();
 
-DrawDripsW();
+    DrawDripsW();
 
         rlPushMatrix();
             rlTranslatef(-1.0f, 0.0f, 0.0f);
@@ -2395,6 +2431,9 @@ DrawDripsW();
         DrawSimpleLocker((Vector3){1.5f, 0, 8.5f}, (Vector3){0, 180, 0});
         DrawSimpleLocker((Vector3){-1.5f, 0, 11.5f}, (Vector3){0, 0, 0});
         DrawSimpleLocker((Vector3){1.5f, 0, 11.5f}, (Vector3){0, 180, 0});
+
+        DrawControlTable((Vector3){-5, 0, -5});
+        DrawButton(0, 10, 0, BLUE);
 
         DrawSimpleLocker((Vector3){3.5f, 0, 11.5f}, (Vector3){0, 0, 0});
         DrawSimpleLocker((Vector3){6.5f, 0, 11.5f}, (Vector3){0, 180, 0});
@@ -2478,12 +2517,12 @@ DrawDripsW();
             DrawPaper((Vector3){-0.3f, y, -0.01f}, 15.0f, 0.8f);
 
         rlPushMatrix();
-        rlTranslatef(1.6f, 1.1f, -6.6f);
-        DrawModel(Gun, (Vector3){0, 0, 0}, 0.75, LIGHTGRAY);
+        rlTranslatef(1.8f, 1.1f, -6.6f);
+        DrawModel(Gun, (Vector3){0, 0, 0}, 0.55, LIGHTGRAY);
         rlPopMatrix();
-        DrawModel(Gun2, (Vector3){1.6f, 1.1, -3.4f}, 0.75, LIGHTGRAY);
-        DrawModel(Gun, (Vector3){-1.6f, 1.1, -6.6f}, 0.75, LIGHTGRAY);
-        DrawModel(Gun2, (Vector3){-1.6f, 1.1, -3.4f}, 0.75, LIGHTGRAY);
+        DrawModel(Gun2, (Vector3){1.8f, 1.15, -3.4f}, 0.55, LIGHTGRAY);
+        DrawModel(Gun4, (Vector3){-1.4f, 1.15, -6.6f}, 0.55, LIGHTGRAY);
+        DrawModel(Gun3, (Vector3){0, 1.625, -5}, 0.55, LIGHTGRAY);
         rlPushMatrix();
         rlTranslatef(0 ,1.125, -5);
         rlRotatef(90, 0, 0, 1);
@@ -2531,6 +2570,10 @@ DrawDripsW();
         rlPopMatrix();
         rlPushMatrix();
             rlTranslatef(10, 0, 10);
+            DrawRoom();
+        rlPopMatrix();
+        rlPushMatrix();
+            rlTranslatef(0, 0, -5);
             DrawRoom();
         rlPopMatrix();
         DrawPlusHallway();
