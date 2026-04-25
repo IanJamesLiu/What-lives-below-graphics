@@ -1426,13 +1426,12 @@ void DrawBlinkIndicator(BlinkIndicator b, float x, float y, float z)
     DrawSphere((Vector3){x, y, z}, b.radius, c);
 }
 
-
-
 void DrawMoniter(float x, float y, float z)
 {
     DrawModel(trapModel, (Vector3){x, y, z}, 2.0f, WHITE);
     DrawModel(staticModel, (Vector3){x, y, z + 0.001f}, 2.35f, WHITE);
 }
+
 Vector3 ForwardFromCamera(Camera3D cam)
 {
     // Compute forward vector manually (Pi‑safe)
@@ -1484,7 +1483,7 @@ void DrawBrokenHangingMonitor(float x, float y, float z)
     // -----------------------------
     rlPushMatrix();
         rlTranslatef(x, y + 0.25f, z + 0.1);
-        rlRotatef(-30.0f + sway, 0, 0, 1);   // tilt forward + sway
+        rlRotatef(-28.0f + sway, 0, 0, 1);   // tilt forward + sway
         DrawMoniter(0, 0, 0);               // your monitor at local origin
     rlPopMatrix();
 }
@@ -2687,10 +2686,31 @@ UnloadImage(fabricImg);
         DrawDesk();
         rlPopMatrix();
         DrawComputer((Vector3){5, 0.775, -5}, 1, 0);
-        DrawBrokenHangingMonitor(0, 10, 0);
-        DrawMic(5.23, 0.875, -4.75);
+        DrawMic(5.23, 0.835, -4.75);
+        DrawMoniter(5.0f, 1.5f, -6.8f);
+        rlPushMatrix();
+            rlTranslatef(5.0f, 1.5f, -3.2f);   // front wall + offset
+            rlRotatef(180.0f, 0, 1, 0);        // flip to face into the room
+            DrawMoniter(0, 0, 0);
+        rlPopMatrix();
+        rlPushMatrix();
+            rlTranslatef(3.2f, 1.5f, -5.0f);   // left wall + offset
+            rlRotatef(90.0f, 0, 1, 0);         // rotate to face inward
+            DrawMoniter(0, 0, 0);              // monitor draws at origin inside transform
+        rlPopMatrix();
+        rlPushMatrix();
+            rlTranslatef(6.7f, 1.2f, -5.0f);   // right wall + 0.3 offset
+            rlRotatef(270.0f, 0, 1, 0);        // 270° Y rotation (faces inward)
+            rlRotatef(-25.0f, 0, 0, 1);        // hanging tilt
+            DrawBrokenHangingMonitor(0, 0, 0); // MUST be 0,0,0 inside RL
+        rlPopMatrix();
+
 
         DrawRoom();
+        rlPushMatrix();
+            rlTranslatef(0.0f, 0.0f, -5.0f);
+            DrawRoom2();
+        rlPopMatrix();
         DrawRoom2();
         rlPushMatrix();
             rlTranslatef(5, 0, 0.0f);
