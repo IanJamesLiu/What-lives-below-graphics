@@ -85,7 +85,16 @@ struct DripW {
     bool active;
 };
 
+struct BlinkIndicator {
+    float radius;
+    Color base;
+    float timer;
+};
 
+
+BlinkIndicator light1 = {0.05f, RED, 0};
+BlinkIndicator light2 = {0.05f, BLUE, 0};
+BlinkIndicator light3 = {0.05f, YELLOW, 0};
 
 const int MAX_DRIPSW = 2;
 DripW dripsW[MAX_DRIPSW];
@@ -1381,6 +1390,49 @@ void DrawButton(float pox, float poy, float poz, Color c)
     DrawCube((Vector3){pox, poy, poz}, 0.1, 0.1, 0.1, c);
 }
 
+void DrawCylinderButton(float x, float y, float z, float r, Color c)
+{
+    DrawCylinder((Vector3){x, y, z}, r, r, 0.05f, 16, c);
+}
+
+void DrawSlideSwitch(float x, float y, float z)
+{
+    // Base plate
+    DrawCube((Vector3){x, y, z}, 0.3f, 0.05f, 0.15f, DARKGRAY);
+
+    // --- Inner dark cavity (looks hollow) ---
+    DrawCube((Vector3){x, y + 0.011f, z}, 0.26f, 0.03f, 0.08f, (Color){30, 30, 35, 255});
+
+    // Slider knob
+    DrawCube((Vector3){x + 0.05f, y + 0.04f, z}, 0.12f, 0.06f, 0.06f, LIGHTGRAY);
+}
+
+void UpdateBlinkIndicator(BlinkIndicator *b, float dt)
+{
+    b->timer += dt * 4.0f;   // blink speed
+}
+
+void DrawBlinkIndicator(BlinkIndicator b, float x, float y, float z)
+{
+    float blink = (sinf(b.timer * 6.0f) + 1.0f) * 0.5f;
+
+    // Fade between darker and brighter version of the base color
+    unsigned char r  = (unsigned char)(b.base.r * (0.4f + blink * 0.6f));
+    unsigned char g  = (unsigned char)(b.base.g * (0.4f + blink * 0.6f));
+    unsigned char bl = (unsigned char)(b.base.b * (0.4f + blink * 0.6f));
+
+    Color c = { r, g, bl, 255 };
+
+    DrawSphere((Vector3){x, y, z}, b.radius, c);
+}
+
+
+
+void DrawMoniter(float x, float y, float z)
+{
+    DrawModel(trapModel, (Vector3){x, y, z}, 2.0f, WHITE);
+    DrawModel(staticModel, (Vector3){x, y, z + 0.001f}, 2.35f, WHITE);
+}
 Vector3 ForwardFromCamera(Camera3D cam)
 {
     // Compute forward vector manually (Pi‑safe)
@@ -1398,6 +1450,55 @@ Vector3 ForwardFromCamera(Camera3D cam)
         f.z /= mag;
     }
     return f;
+}
+
+void DrawBrokenHangingMonitor(float x, float y, float z)
+{
+    // -----------------------------
+    // COLOR
+    // -----------------------------
+    Color wireColor = {123, 128, 122, 255};
+    //Color wireColor = {151, 3, 0, 255};
+    //Color wireColor2 = {62, 165, 218, 255};
+    // -----------------------------
+    // Wires (uneven for broken look)
+    // -----------------------------
+    Vector3 wireTopL = { x - 0.25f, y + 1.2f, z };
+    Vector3 wireTopR = { x + 0.20f, y + 1.2f, z };
+
+    Vector3 wireBotL = { x - 0.15f, y + 0.45f, z };
+    Vector3 wireBotR = { x + 0.10f, y + 0.45f, z };
+
+    float wireR = 0.02f;
+
+    DrawCylinderEx(wireTopL, wireBotL, wireR, wireR, 8, wireColor);
+    DrawCylinderEx(wireTopR, wireBotR, wireR, wireR, 8, wireColor);
+
+    // -----------------------------
+    // Sway animation (creepy)
+    // -----------------------------
+    float sway = sin(GetTime()/1.5 * 0.75f) * -4.0f;
+
+    // -----------------------------
+    // Draw your normal monitor, tilted + swaying
+    // -----------------------------
+    rlPushMatrix();
+        rlTranslatef(x, y + 0.25f, z + 0.1);
+        rlRotatef(-30.0f + sway, 0, 0, 1);   // tilt forward + sway
+        DrawMoniter(0, 0, 0);               // your monitor at local origin
+    rlPopMatrix();
+}
+
+void DrawMic(float x, float y, float z)
+{
+    // Base
+    DrawCylinder((Vector3){x, y, z}, 0.10f, 0.10f, 0.02f, 16, DARKGRAY);
+
+    // Stem
+    DrawCylinder((Vector3){x, y + 0.02f, z}, 0.02f, 0.02f, 0.20f, 16, MOREGRAY);
+
+    // Mic head
+    DrawSphere((Vector3){x, y + 0.25f, z}, 0.06f, (Color){60, 60, 60, 255});
 }
 
 //prepare cabinet 
@@ -2433,7 +2534,49 @@ UnloadImage(fabricImg);
         DrawSimpleLocker((Vector3){1.5f, 0, 11.5f}, (Vector3){0, 180, 0});
 
         DrawControlTable((Vector3){-5, 0, -5});
-        DrawButton(0, 10, 0, BLUE);
+        DrawButton(-5.85, 1.2, -4.8, BLUE);
+        DrawCylinderButton(-5.65, 1.15, -4.8, 0.05,  YELLOW);
+        DrawSlideSwitch(-5.75, 1.175, -5);
+        DrawMoniter(-5, 1.5, -5.4f);
+        //BlinkIndicator light1 = {0.05f, RED, 1};
+        UpdateBlinkIndicator(&light3, GetFrameTime()/3);
+        UpdateBlinkIndicator(&light1, GetFrameTime()/2);
+        UpdateBlinkIndicator(&light2, GetFrameTime());
+        DrawBlinkIndicator(light1, -5.85, 1.175, -5.2);
+        DrawBlinkIndicator(light1, -5.85, 1.175, -4.6);
+        DrawBlinkIndicator(light2, -5.65, 1.175, -4.6);
+        DrawSlideSwitch(-5.55, 1.175, -5.2);
+        DrawButton(-5.3, 1.175, -5.2, GREEN);
+        DrawButton(-5.3, 1.175, -5, GRAY);
+        DrawButton(-5.3, 1.175, -4.8, GRAY);
+        DrawButton(-5.3, 1.175, -4.6, GRAY);
+        DrawButton(-5.5, 1.175, -5, GRAY);
+        DrawButton(-5.5, 1.175, -4.8, GRAY);
+        DrawButton(-5.5, 1.175, -4.6, GRAY);
+        DrawButton(-5.1, 1.175, -5, GRAY);
+        DrawButton(-5.1, 1.175, -4.8, GRAY);
+        DrawButton(-5.1, 1.175, -4.6, GRAY);
+        DrawCylinderButton(-4.9, 1.175, -5, 0.05, RED);
+        DrawBlinkIndicator(light2, -4.7, 1.175, -5);
+        DrawSlideSwitch(-4.8, 1.175, -4.8);
+        DrawSlideSwitch(-4.8, 1.175, -4.6);
+        DrawCylinderButton(-4.5, 1.175, -5, 0.05, RED);
+        DrawBlinkIndicator(light2, -4.3, 1.175, -5);
+        DrawSlideSwitch(-4.4, 1.175, -4.8);
+        DrawSlideSwitch(-4.4, 1.175, -4.6);
+        DrawBlinkIndicator(light3, -4.1, 1.175, -5.2);
+        DrawBlinkIndicator(light3, -4.3, 1.175, -5.2);
+        DrawBlinkIndicator(light3, -4.5, 1.175, -5.2);
+        DrawBlinkIndicator(light3, -4.7, 1.175, -5.2);
+        DrawBlinkIndicator(light3, -4.9, 1.175, -5.2);
+        DrawBlinkIndicator(light3, -5.1, 1.175, -5.2);
+        DrawButton(-4.1, 1.175, -5, RED);
+        rlPushMatrix();
+        rlTranslatef(-5, 0, -4);
+        rlScalef(2, 2.5f, 2);
+        rlRotatef(180, 0, 1, 0);
+        DrawCafeChair();
+        rlPopMatrix();
 
         DrawSimpleLocker((Vector3){3.5f, 0, 11.5f}, (Vector3){0, 0, 0});
         DrawSimpleLocker((Vector3){6.5f, 0, 11.5f}, (Vector3){0, 180, 0});
@@ -2538,7 +2681,14 @@ UnloadImage(fabricImg);
         DrawCube((Vector3){-1.6, 1, -3.4f}, 0.8f, 0.2f, 0.8f, DARKBROWN);
         DrawCube((Vector3){-1.6f, 1, -6.6f}, 0.8f, 0.2f, 0.8f, DARKBROWN);
 
-
+        rlPushMatrix();
+        rlTranslatef(2.5, 0, -5);
+        rlScalef(0.5f, 0.75f, 0.5f);
+        DrawDesk();
+        rlPopMatrix();
+        DrawComputer((Vector3){5, 0.775, -5}, 1, 0);
+        DrawBrokenHangingMonitor(0, 10, 0);
+        DrawMic(5.23, 0.875, -4.75);
 
         DrawRoom();
         DrawRoom2();
@@ -2575,6 +2725,10 @@ UnloadImage(fabricImg);
         rlPushMatrix();
             rlTranslatef(0, 0, -5);
             DrawRoom();
+        rlPopMatrix();
+        rlPushMatrix();
+        rlTranslatef(0, 0, -5);
+        DrawRoom3();
         rlPopMatrix();
         DrawPlusHallway();
         DrawCentralBlock(DARKGRAY, GRAY, wallcolor, cubeModel, cubeModelUp, cubeModelDown);
