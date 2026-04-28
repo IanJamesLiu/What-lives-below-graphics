@@ -6,8 +6,6 @@
 #include "math.h"
 #include <cstring>
 #include <ctime>
-#include <chrono>
-#include <thread>
 
 Color wallcolor = {73, 73, 81, 255 };
 Color wallcolor2 = {78, 78, 86, 255};
@@ -22,7 +20,6 @@ Color MOREGRAY = { 130, 130, 130, 255 };
 Color metalDirty = { 58, 58, 63, 255 };
 Color doorColor = { 0x58, 0x58, 0x58, 0xFF };
 Color blueprint = { 0, 255, 255, 12 };
-Color deepAbyss = {0, 0, 0, 250};
 Color fogColor = { 18, 18, 20, 2 };   // pale dusty fog
 // Global textures (initialized in main)
 Texture2D woodTex;
@@ -86,7 +83,6 @@ Model Panel;
 Model EscapeDoor;
 Model EscapePart1;
 Model EscapePart2;
-Model Shadow;
 
 
 struct DripW {
@@ -298,7 +294,6 @@ void DrawHalfSphereUpper(Vector3 pos, float radius, Color color)
 }
 void initall(void)
 {
-
 Image noise = GenImagePerlinNoise(256, 256, 0, 0, 8.0f);
 
 for (int y = 0; y < noise.height; y++)
@@ -460,12 +455,6 @@ for (int y = 0; y < noise.height; y++)
     Mesh handleMesh = GenMeshCylinder(0.05f, 1.0f, 32);
     handleModel = LoadModelFromMesh(handleMesh);
     handleModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = woodTex;
-
-    Texture2D ShadowTex = LoadTexture("textures/Shadow.png");
-
-    Mesh s = GenMeshCube(1, 0.02, 2);
-    Shadow = LoadModelFromMesh(s);
-    Shadow.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = ShadowTex;
 }
 
 void DrawControlTable(Vector3 pos)
@@ -2160,186 +2149,8 @@ void DrawPlusHallway()
     // West arm side walls
     DrawModelEx(wallCubeModel, (Vector3){base.x - (center/2 + arm/2), base.y + h/2, base.z - center/2}, (Vector3){0,1,0}, 0, (Vector3){arm, h, 0.1f}, WHITE);
     DrawModelEx(wallCubeModel, (Vector3){base.x - (center/2 + arm/2), base.y + h/2, base.z + center/2}, (Vector3){0,1,0}, 0, (Vector3){arm, h, 0.1f}, WHITE);
+
 }
-
-void DrawShadow(void)
-{
-    static float offset = 0.0f;
-    static float dir = 0.02f;      // movement speed
-    static bool cooldown = false;
-    static float cooldownEnd = 0.0f;
-
-    float now = GetTime();
-
-    if (!cooldown)
-    {
-        // Move offset manually (smooth, no teleport)
-        offset += dir;
-
-        // If we hit the edge, start cooldown
-        if (offset > 3.0f || offset < -3.0f)   // farther out
-        {
-            cooldown = true;
-
-            int r2 = 3 + rand() % 8;          // cooldown 3–10 seconds
-            cooldownEnd = now + r2;
-
-            dir = -dir;                        // reverse direction
-        }
-    }
-    else
-    {
-        // Cooldown active — check if it's over
-        if (now >= cooldownEnd)
-            cooldown = false;
-    }
-
-    // Draw using the current offset
-    float x = -5 + offset;
-
-    DrawModel(Shadow, (Vector3){x, -4.9f, 4.6f}, 1, BLACK);
-
-    rlPushMatrix();
-        rlTranslatef(x, -4.0f, 4.3f);
-        rlRotatef(90, 1, 0, 0);
-        rlRotatef(180, 0, 1, 0);
-        DrawModel(Shadow, (Vector3){0, 0, 0}, 1, BLACK);
-    rlPopMatrix();
-}
-
-void DrawMainMenu()
-{
-    rlPushMatrix();
-    rlTranslatef(0, -5, 0);
-    // -----------------------------
-    // Load cube model once
-    // -----------------------------
-    static Model wallCubeModel;
-    static bool initialized = false;
-
-    if (!initialized)
-    {
-        Mesh cubeMesh = GenMeshCube(1.0f, 1.0f, 1.0f);
-        wallCubeModel = LoadModelFromMesh(cubeMesh);
-        wallCubeModel.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = texWall;
-        initialized = true;
-    }
-
-    // -----------------------------
-    // Position of the entire hallway
-    // -----------------------------
-    Vector3 base = { -5.0f, 0.0f, 10.0f };
-
-    // -----------------------------
-    // Dimensions
-    // -----------------------------
-    float h = 2.5f;   // wall height
-    float w = 2.0f;   // hallway width
-    float L = 4.0f;   // length of each arm
-
-    // -----------------------------
-    // FLOOR (cross shape)
-    // -----------------------------
-    DrawModelEx(
-        wallCubeModel,
-        (Vector3){ base.x, base.y + 0.001f, base.z - 2},
-        (Vector3){1,0,0}, 0,
-        (Vector3){ w, 0.1f, L*2},
-        WHITE
-    );
-
-    DrawModelEx(
-        wallCubeModel,
-        (Vector3){ base.x, base.y, base.z },
-        (Vector3){1,0,0}, 0,
-        (Vector3){ L, 0.1f, w },
-        WHITE
-    );
-
-    // -----------------------------
-    // CEILING
-    // -----------------------------
-    DrawModelEx(
-        wallCubeModel,
-        (Vector3){ base.x, base.y + h + 0.001f, base.z - 2 },
-        (Vector3){1,0,0}, 0,
-        (Vector3){ w, 0.1f, L*2},
-        WHITE
-    );
-
-    DrawModelEx(
-        wallCubeModel,
-        (Vector3){ base.x, base.y + h, base.z },
-        (Vector3){1,0,0}, 0,
-        (Vector3){ L, 0.1f, w },
-        WHITE
-    );
-
-    // -----------------------------
-    // WALLS
-    // -----------------------------
-
-    // North
-    DrawModelEx(
-        wallCubeModel,
-        (Vector3){ base.x, base.y + h/2, base.z - L/2 - 4},
-        (Vector3){0,1,0}, 0,
-        (Vector3){ w, h, 0.1f },
-        deepAbyss
-    );
-
-    // South
-    DrawModelEx(
-        wallCubeModel,
-        (Vector3){ base.x, base.y + h/2, base.z + L/2 },
-        (Vector3){0,1,0}, 0,
-        (Vector3){ w, h, 0.1f },
-        WHITE
-    );
-
-    // East
-    DrawModelEx(
-        wallCubeModel,
-        (Vector3){ base.x + L/2, base.y + h/2, base.z },
-        (Vector3){0,1,0}, 0,
-        (Vector3){ 0.1f, h, w },
-        WHITE
-    );
-
-    // West
-    DrawModelEx(
-        wallCubeModel,
-        (Vector3){ base.x - L/2, base.y + h/2, base.z },
-        (Vector3){0,1,0}, 0,
-        (Vector3){ 0.1f, h, w },
-        WHITE
-    );
-
-    // -----------------------------
-    // WALLS — FULL + SHAPE
-    // -----------------------------
-    float center = 2.0f;   // 2×2 center
-    float arm = 1.0f;      // 1 unit extension
-
-    // North arm side walls
-    DrawModelEx(wallCubeModel, (Vector3){base.x - center/2, base.y + h/2, base.z - (center/2 + arm/2) - 2}, (Vector3){0,1,0}, 0, (Vector3){0.1f, h, arm*5}, WHITE);
-    DrawModelEx(wallCubeModel, (Vector3){base.x + center/2, base.y + h/2, base.z - (center/2 + arm/2) - 2}, (Vector3){0,1,0}, 0, (Vector3){0.1f, h, arm*5}, WHITE);
-
-    // South arm side walls
-    DrawModelEx(wallCubeModel, (Vector3){base.x - center/2, base.y + h/2, base.z + (center/2 + arm/2)}, (Vector3){0,1,0}, 0, (Vector3){0.1f, h, arm}, WHITE);
-    DrawModelEx(wallCubeModel, (Vector3){base.x + center/2, base.y + h/2, base.z + (center/2 + arm/2)}, (Vector3){0,1,0}, 0, (Vector3){0.1f, h, arm}, WHITE);
-
-    // East arm side walls
-    DrawModelEx(wallCubeModel, (Vector3){base.x + (center/2 + arm/2), base.y + h/2, base.z - center/2}, (Vector3){0,1,0}, 0, (Vector3){arm, h, 0.1f}, WHITE);
-    DrawModelEx(wallCubeModel, (Vector3){base.x + (center/2 + arm/2), base.y + h/2, base.z + center/2}, (Vector3){0,1,0}, 0, (Vector3){arm, h, 0.1f}, WHITE);
-
-    // West arm side walls
-    DrawModelEx(wallCubeModel, (Vector3){base.x - (center/2 + arm/2), base.y + h/2, base.z - center/2}, (Vector3){0,1,0}, 0, (Vector3){arm, h, 0.1f}, WHITE);
-    DrawModelEx(wallCubeModel, (Vector3){base.x - (center/2 + arm/2), base.y + h/2, base.z + center/2}, (Vector3){0,1,0}, 0, (Vector3){arm, h, 0.1f}, WHITE);
-
-    rlPopMatrix();
-}
-
 // ------------------------------------------------------------
 // MAIN PROGRAM
 // ------------------------------------------------------------
@@ -2580,7 +2391,7 @@ UnloadImage(fabricImg);
 
     float globalDim = 0.55f;   // 55% brightness
     Color coldTint = { 180, 190, 220, 255 };  // bluish-gray
-// continue here
+
 
     Camera cam = {0};
     cam.position = (Vector3){0.0f, 0.75f, 1.8f};   // Your chosen camera
@@ -2969,8 +2780,6 @@ UnloadImage(fabricImg);
         DrawRoom2();
         rlPopMatrix(); 
         DrawPlusHallway();
-        DrawMainMenu();
-        DrawShadow();
         DrawCentralBlock(DARKGRAY, GRAY, wallcolor, cubeModel, cubeModelUp, cubeModelDown);
 
         // -------------------------------
